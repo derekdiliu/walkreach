@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# project notes (contains DB connection string)
+/PROJECT_CONTEXT.md
