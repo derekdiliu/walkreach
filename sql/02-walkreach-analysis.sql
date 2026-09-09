@@ -1,19 +1,7 @@
 -- One network traversal per query: pgr_drivingDistance runs once and both the
 -- amenity scoring and the isochrone bands are derived from its result.
 -- Replaces livability_score() + get_isochrone(), which each ran their own.
-
--- Amenity -> network node pairs within 50 m, precomputed. The scoring query
--- used to spatially join every amenity against every reached node on each
--- request (~6 s); this turns that into an equality join on node id.
--- Rebuild whenever the amenities or ways tables are reimported.
-DROP TABLE IF EXISTS amenity_nodes;
-CREATE TABLE amenity_nodes AS
-SELECT a.id AS amenity_id, a.category, v.id AS node_id
-FROM amenities a
-JOIN ways_vertices_pgr v ON ST_DWithin(a.geom::geography, v.geom::geography, 50);
-ALTER TABLE amenity_nodes ADD PRIMARY KEY (amenity_id, node_id);
-CREATE INDEX amenity_nodes_node_idx ON amenity_nodes (node_id);
-ANALYZE amenity_nodes;
+-- Needs the amenity_nodes table from 01-amenity-nodes.sql.
 
 CREATE OR REPLACE FUNCTION walkreach_analysis(input_lng float, input_lat float)
 RETURNS jsonb AS $$
@@ -30,6 +18,10 @@ RETURNS jsonb AS $$
     ) dd
     JOIN ways_vertices_pgr v ON dd.node = v.id
   ),
+  weights (category, weight) AS (
+    VALUES ('supermarket', 0.30), ('clinic', 0.25), ('school', 0.20),
+           ('park', 0.15), ('bus_stop', 0.10)
+  ),
   nearest AS (
     -- 每类设施取最近的那一个（米）
     SELECT an.category, MIN(iso.agg_cost) AS nearest_m
@@ -38,16 +30,16 @@ RETURNS jsonb AS $$
     GROUP BY an.category
   ),
   scored AS (
-    -- 最近设施距离转成 0-1 分：0米=1.0, 1250米=0.0，线性衰减
-    SELECT category,
+    -- 最近设施距离转成 0-1 分：0米=1.0, 1250米=0.0，线性衰减。
+    -- 每类都输出一行，走不到的那类是 0 分（而不是从结果里消失）。
+    SELECT w.category,
       round((
-        GREATEST(0, 1 - nearest_m / 1250.0) *
-        CASE category
-          WHEN 'supermarket' THEN 0.30 WHEN 'clinic' THEN 0.25
-          WHEN 'school' THEN 0.20 WHEN 'park' THEN 0.15
-          WHEN 'bus_stop' THEN 0.10 END * 100
-      )::numeric, 1) AS weighted_score
-    FROM nearest
+        GREATEST(0, 1 - COALESCE(n.nearest_m, 1250) / 1250.0) * w.weight * 100
+      )::numeric, 1) AS weighted_score,
+      round((w.weight * 100)::numeric, 1) AS max_score,
+      round(n.nearest_m::numeric) AS nearest_m
+    FROM weights w
+    LEFT JOIN nearest n ON n.category = w.category
   ),
   bands AS (
     SELECT m AS minutes,
@@ -60,7 +52,8 @@ RETURNS jsonb AS $$
     'total_score', COALESCE((SELECT round(sum(weighted_score), 1) FROM scored), 0),
     'breakdown', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
-        'category', category, 'weighted_score', weighted_score
+        'category', category, 'weighted_score', weighted_score,
+        'max_score', max_score, 'nearest_m', nearest_m
       ) ORDER BY category) FROM scored), '[]'::jsonb),
     'isochrone', jsonb_build_object(
       'type', 'FeatureCollection',
