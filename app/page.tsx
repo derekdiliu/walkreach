@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-type Breakdown = { category: string; weighted_score: string };
+type Breakdown = { category: string; weighted_score: number };
 type Result = {
   location: { lng: number; lat: number };
   total_score: number;
   breakdown: Breakdown[];
+  isochrone: { type: string; features: any[] };
 };
 
 const EMPTY_GEOJSON = { type: "FeatureCollection", features: [] };
@@ -87,6 +88,14 @@ export default function Home() {
         });
       });
 
+      // A click can land before the style has loaded and the source exists;
+      // hold the data until it does rather than dropping it.
+      const setIsochrone = (data: any) => {
+        const source = map.getSource("isochrone");
+        if (source) source.setData(data);
+        else map.once("load", () => map.getSource("isochrone").setData(data));
+      };
+
       map.on("click", async (e: any) => {
         const { lng, lat } = e.lngLat;
 
@@ -99,28 +108,15 @@ export default function Home() {
         setResult(null);
         setOffNetwork(false);
 
-        const source = map.getSource("isochrone");
-        if (source) source.setData(EMPTY_GEOJSON);
+        setIsochrone(EMPTY_GEOJSON);
 
         try {
-          const [scoreRes, isoRes] = await Promise.all([
-            fetch(`/api/livability?lng=${lng}&lat=${lat}`),
-            fetch(`/api/isochrone?lng=${lng}&lat=${lat}`),
-          ]);
-          const score = await scoreRes.json();
-          const iso = await isoRes.json();
+          const res = await fetch(`/api/livability?lng=${lng}&lat=${lat}`);
+          const data: Result = await res.json();
 
-          const polygons = (iso.features || []).filter(
-            (f: any) =>
-              f.geometry.type === "Polygon" ||
-              f.geometry.type === "MultiPolygon",
-          );
-
-          setResult(score);
-          setOffNetwork(polygons.length === 0);
-          if (source) {
-            source.setData({ type: "FeatureCollection", features: polygons });
-          }
+          setResult(data);
+          setOffNetwork(data.isochrone.features.length === 0);
+          setIsochrone(data.isochrone);
         } catch {
           setResult(null);
         }
