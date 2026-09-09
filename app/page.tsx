@@ -10,19 +10,36 @@ type Result = {
   breakdown: Breakdown[];
 };
 
+const EMPTY_GEOJSON = { type: "FeatureCollection", features: [] };
+
+const BANDS = [
+  { minutes: 5, color: "#2c5f6f" },
+  { minutes: 10, color: "#5fa8bd" },
+  { minutes: 15, color: "#a8d5e2" },
+];
+
 export default function Home() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [loading, setLoading] = useState(false);
+  const [offNetwork, setOffNetwork] = useState(false);
 
   useEffect(() => {
     let map: any;
     let cancelled = false;
 
     (async () => {
-      const { Map: MapLibreMap, Marker } = await import("maplibre-gl");
+      const { Map: MapLibreMap, Marker, setWorkerUrl } = await import(
+        "maplibre-gl"
+      );
+
+      // MapLibre resolves its worker from import.meta.url, which Turbopack
+      // rewrites to a chunk path where the worker file does not exist. The
+      // worker then dies silently and anything parsed off the main thread
+      // (GeoJSON sources) never renders. Point it at the copy in public/.
+      setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
 
       if (cancelled || mapRef.current || !mapContainer.current) return;
 
@@ -46,6 +63,30 @@ export default function Home() {
 
       mapRef.current = map;
 
+      map.on("load", () => {
+        map.addSource("isochrone", { type: "geojson", data: EMPTY_GEOJSON });
+        map.addLayer({
+          id: "isochrone-fill",
+          type: "fill",
+          source: "isochrone",
+          paint: {
+            "fill-color": [
+              "match",
+              ["get", "minutes"],
+              5,
+              BANDS[0].color,
+              10,
+              BANDS[1].color,
+              15,
+              BANDS[2].color,
+              "#cccccc",
+            ],
+            "fill-opacity": 0.35,
+            "fill-outline-color": "#ffffff",
+          },
+        });
+      });
+
       map.on("click", async (e: any) => {
         const { lng, lat } = e.lngLat;
 
@@ -56,10 +97,30 @@ export default function Home() {
 
         setLoading(true);
         setResult(null);
+        setOffNetwork(false);
+
+        const source = map.getSource("isochrone");
+        if (source) source.setData(EMPTY_GEOJSON);
+
         try {
-          const res = await fetch(`/api/livability?lng=${lng}&lat=${lat}`);
-          const data = await res.json();
-          setResult(data);
+          const [scoreRes, isoRes] = await Promise.all([
+            fetch(`/api/livability?lng=${lng}&lat=${lat}`),
+            fetch(`/api/isochrone?lng=${lng}&lat=${lat}`),
+          ]);
+          const score = await scoreRes.json();
+          const iso = await isoRes.json();
+
+          const polygons = (iso.features || []).filter(
+            (f: any) =>
+              f.geometry.type === "Polygon" ||
+              f.geometry.type === "MultiPolygon",
+          );
+
+          setResult(score);
+          setOffNetwork(polygons.length === 0);
+          if (source) {
+            source.setData({ type: "FeatureCollection", features: polygons });
+          }
         } catch {
           setResult(null);
         }
@@ -90,6 +151,12 @@ export default function Home() {
           Click anywhere on the map to see its walkability score.
         </p>
         {loading && <p>Calculating…</p>}
+        {offNetwork && (
+          <p style={{ color: "#a33", fontSize: 14 }}>
+            This location is outside the Hamilton walking network — no
+            catchment could be computed.
+          </p>
+        )}
         {result && result.breakdown && (
           <div>
             <div style={{ fontSize: 48, fontWeight: "bold", color: "#2c5f6f" }}>
@@ -112,6 +179,33 @@ export default function Home() {
                 ))}
               </tbody>
             </table>
+            {!offNetwork && (
+              <div style={{ marginTop: 20, fontSize: 13, color: "#666" }}>
+                {BANDS.map((band) => (
+                  <div
+                    key={band.minutes}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "2px 0",
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 14,
+                        height: 14,
+                        background: band.color,
+                        opacity: 0.6,
+                        border: "1px solid #fff",
+                        outline: "1px solid #ddd",
+                      }}
+                    />
+                    {band.minutes} min walk
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
