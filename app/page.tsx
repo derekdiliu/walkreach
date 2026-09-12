@@ -19,9 +19,9 @@ type Result = {
 const EMPTY_GEOJSON = { type: "FeatureCollection" as const, features: [] };
 
 const BANDS = [
-  { minutes: 5, color: "#2c5f6f" },
-  { minutes: 10, color: "#5fa8bd" },
-  { minutes: 15, color: "#a8d5e2" },
+  { minutes: 5, color: "#0d3b4f", opacity: 0.66 },
+  { minutes: 10, color: "#3e93ad", opacity: 0.54 },
+  { minutes: 15, color: "#a9dceb", opacity: 0.46 },
 ];
 
 const CITY_CENTRE: [number, number] = [175.2793, -37.7871];
@@ -73,6 +73,8 @@ export default function Home() {
               type: "fill",
               source: "isochrone",
               paint: {
+                // each band gets its own colour AND opacity, so the three
+                // rings read as distinct steps rather than one wash
                 "fill-color": [
                   "match",
                   ["get", "minutes"],
@@ -84,8 +86,27 @@ export default function Home() {
                   BANDS[2].color,
                   "#cccccc",
                 ],
-                "fill-opacity": 0.35,
-                "fill-outline-color": "#ffffff",
+                "fill-opacity": [
+                  "match",
+                  ["get", "minutes"],
+                  5,
+                  BANDS[0].opacity,
+                  10,
+                  BANDS[1].opacity,
+                  15,
+                  BANDS[2].opacity,
+                  0.4,
+                ],
+              },
+            },
+            {
+              id: "isochrone-outline",
+              type: "line",
+              source: "isochrone",
+              paint: {
+                "line-color": "#ffffff",
+                "line-width": 1.5,
+                "line-opacity": 0.9,
               },
             },
           ],
@@ -389,7 +410,7 @@ export default function Home() {
                   width: 14,
                   height: 14,
                   background: band.color,
-                  opacity: 0.6,
+                  opacity: band.opacity,
                   border: "1px solid #fff",
                   outline: "1px solid #ddd",
                 }}
