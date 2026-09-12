@@ -1,36 +1,199 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WalkReach
 
-## Getting Started
+> **Work in progress.** This is an active COMPX576 research project, not a
+> finished product. The core — network routing, scoring and isochrones — works
+> end to end, but the layout is desktop-only and nothing is deployed yet. See [Limitations](#limitations) and
+> [Roadmap](#roadmap) for what is still open.
 
-First, run the development server:
+An interactive walkability tool for Hamilton, New Zealand. Click anywhere on the
+map and WalkReach shows you how far you can actually walk in 5, 10 and 15
+minutes — and how well that area is served by supermarkets, clinics, schools,
+parks and bus stops.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+The point is **network distance, not straight-line distance**. A supermarket
+400 m away as the crow flies can be a 2 km walk if the Waikato River is in
+between, and every "X minutes from the shops" claim that ignores this is
+wrong. WalkReach routes over the real pedestrian network with pgRouting, so
+the numbers reflect the walk you would actually take.
+
+## What you get from one click
+
+- **Three isochrone bands** — the area reachable on foot in 5 / 10 / 15 minutes,
+  drawn as polygons over the map.
+- **A livability score out of 100**, weighted across five amenity categories.
+- **A per-category breakdown** — how far the nearest one of each is, in walking
+  metres, and how many points that earned out of the category's maximum.
+
+## How it works
+
+Walking speed is taken as 1.4 m/s, which turns the three time budgets into
+distance budgets of 417 / 833 / 1250 m.
+
+A single call to `walkreach_analysis(lng, lat)` does everything:
+
+1. Snap the clicked coordinate to the nearest node in the pedestrian network.
+2. Run **one** `pgr_drivingDistance` traversal out to the 1250 m budget.
+3. Score amenities from that traversal — for each category, find the nearest
+   reachable one and decay its distance linearly (0 m = full marks,
+   1250 m or unreachable = zero), then weight it.
+4. Build the bands from the same traversal by taking the reached nodes under
+   each distance budget and wrapping them in `ST_ConcaveHull(..., 0.8)`.
+
+Scoring and isochrones share the traversal because they used to be two
+separate endpoints running two separate traversals; merging them cut a click
+from ~7 s to 0.4–2.1 s.
+
+Category weights:
+
+| Category | Weight | Max points |
+|---|---|---|
+| Supermarket | 0.30 | 30 |
+| Clinic | 0.25 | 25 |
+| School | 0.20 | 20 |
+| Park | 0.15 | 15 |
+| Bus stop | 0.10 | 10 |
+
+Every category is always returned, including ones with nothing in range, so
+the UI can explain a score without hardcoding the weights on the client.
+
+## API
+
+```
+GET /api/livability?lng=175.2793&lat=-37.7871
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```jsonc
+{
+  "location": { "lng": 175.2793, "lat": -37.7871 },
+  "total_score": 81.6,
+  "breakdown": [
+    { "category": "supermarket", "weighted_score": 19.5, "max_score": 30.0, "nearest_m": 436 },
+    { "category": "clinic",      "weighted_score": 23.3, "max_score": 25.0, "nearest_m": 87 },
+    { "category": "school",      "weighted_score": 18.3, "max_score": 20.0, "nearest_m": 105 },
+    { "category": "park",        "weighted_score": 11.6, "max_score": 15.0, "nearest_m": 280 },
+    { "category": "bus_stop",    "weighted_score": 8.9,  "max_score": 10.0, "nearest_m": 136 }
+  ],
+  "isochrone": {
+    "type": "FeatureCollection",
+    "features": [{ "properties": { "minutes": 5 }, "geometry": { /* Polygon */ } }]
+  }
+}
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+A coordinate that is off the network (in the middle of the river, say) comes
+back with `total_score: 0` and an empty feature list rather than an error.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Tech stack
 
-## Learn More
+- **PostgreSQL 16** + **PostGIS 3.5** + **pgRouting 3.7.3** — network storage,
+  routing and scoring, all in SQL
+- **Next.js 16** (App Router, TypeScript) with a single route handler and the
+  `pg` driver
+- **MapLibre GL 6** with OpenStreetMap raster tiles — no map API key needed
+- **OpenStreetMap** as the data source, imported with `osmium`,
+  `osm2pgrouting` and `ogr2ogr`
 
-To learn more about Next.js, take a look at the following resources:
+## Running it
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1. Database
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`docker-compose.yml` brings up PostGIS + pgRouting on port 5433, with the
+PostGIS and pgRouting extensions created on first start by `initdb/`:
 
-## Deploy on Vercel
+```bash
+docker compose up -d
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 2. Data
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Everything in the database is rebuilt from an OpenStreetMap extract by one
+script. It needs `osmium`, `osm2pgrouting` and `ogr2ogr` (GDAL) on your PATH,
+and a New Zealand `.osm.pbf` from [Geofabrik](https://download.geofabrik.de/australia-oceania/new-zealand.html)
+in `../data` (outside the repo — the extracts are 380 MB+ and are not
+committed). Point `NZ_PBF` at your download, then:
+
+```bash
+./sql/00-import.sh
+```
+
+It clips Hamilton out of the NZ extract, builds the routable network, filters
+and loads the amenities, precomputes the amenity/node pairs and creates the
+functions — then prints counts to check against a known-good baseline.
+
+| Step | Builds | Size |
+|---|---|---|
+| `osm2pgrouting` | `ways` — pedestrian edges, `length_m` in metres | ~37,500 |
+| | `ways_vertices_pgr` — nodes, 98.8% in one connected component | ~30,000 |
+| `01-amenities.sql` | `amenities` — five categories, GiST indexed | ~1,500 |
+| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) pairs within 50 m | ~10,100 |
+| `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` — what the API calls | |
+| `04-livability-score.sql` | `livability_score(lng, lat)` — superseded, kept for comparison | |
+
+The numbered SQL files are also safe to run on their own, in order, when you
+only need to rebuild part of it. `02` is the slow one — it exists so that
+scoring is an equality join on node id rather than a spatial join per request,
+and it has to be rebuilt whenever `amenities` or `ways` changes. The 50 m
+matching radius lives there, not in the scoring function.
+
+### 3. App
+
+```bash
+npm install
+echo 'DATABASE_URL=postgresql://walkreach:walkreach@localhost:5433/walkreach' > .env.local
+npm run dev
+```
+
+Open http://localhost:3000.
+
+The MapLibre worker is copied into `public/maplibre/` by a `predev` /
+`prebuild` hook — under Next.js 16 with Turbopack, MapLibre only loads
+reliably via a named dynamic import inside `useEffect` with the worker served
+from `public/`.
+
+## Project structure
+
+```
+app/
+  page.tsx                     map, side panel, onboarding card
+  layout.tsx
+  api/livability/route.ts      the single endpoint
+sql/
+  00-import.sh                 OSM → database, one shot
+  01-amenities.sql             categorised amenities table
+  02-amenity-nodes.sql         precomputed amenity → node pairs
+  03-walkreach-analysis.sql    walkreach_analysis(lng, lat)
+  04-livability-score.sql      superseded scorer, kept for the report
+initdb/
+  01-extensions.sql            run once on first container start
+docker-compose.yml             PostGIS + pgRouting on :5433
+```
+
+## Limitations
+
+Current state as of the mid-trimester break — these are known and being worked
+on, not oversights:
+
+- The import script has been verified step by step against the existing
+  database, but not yet run end to end against an empty one.
+- 318 of 1,506 amenities have no network node within 50 m — mostly polygon
+  centroids — and are invisible to scoring.
+- The layout is a fixed 380 px panel beside the map, which leaves a phone with
+  very little map.
+- Locations are chosen by clicking; there is no address search.
+- Concave hull bands are one reasonable choice among several; buffer-and-union
+  has not been compared yet.
+
+## Roadmap
+
+- Address search, and a compare-two-locations mode
+- Highlight the walking path to a chosen amenity
+- Responsive layout
+- Grid pre-computation and caching to hold response times under ~2 s
+- Deployment with PostGIS and pgRouting co-located
+
+## About
+
+WalkReach is a COMPX576 research project for the Master of Information
+Technology at the University of Waikato, and is still under active
+development. Map data is © OpenStreetMap
+contributors, available under the [Open Database License](https://www.openstreetmap.org/copyright).
