@@ -2,7 +2,17 @@
 -- the app calls this. It is kept, and rebuilt by 00-import.sh, only so the
 -- report can show the before/after: this version spatially joins amenities to
 -- reached nodes on every request (~6 s), where walkreach_analysis joins the
--- precomputed amenity_nodes table (~0.4-2 s) for identical scores.
+-- precomputed amenity_nodes table (~0.4-2 s).
+--
+-- The two no longer agree on the score. This one measures to a polygon's
+-- centroid; walkreach_analysis measures to its footprint, which is the point
+-- of that change. At the CBD test coordinate it gives 81.6 against 85.0, and
+-- every category differs. So the pair now shows two changes at once, and it
+-- cannot be presented as a like-for-like timing comparison. Isolating the
+-- speedup would mean giving this function the same footprint rule - at which
+-- point it stops being a record of what the code used to do. Left as the
+-- historical version deliberately; the report should say which of the two
+-- comparisons it is making.
 CREATE OR REPLACE FUNCTION livability_score(input_lng float, input_lat float)
 RETURNS TABLE(category text, weighted_score numeric) AS $$
   WITH start AS (

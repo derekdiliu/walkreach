@@ -38,9 +38,9 @@ WHERE t->'shop' = 'supermarket'
 -- to: a park whose edge runs along the footpath has its centroid ~200 m inside
 -- it (schools ~120 m), so scoring against the centroid overstates every walk to
 -- a large amenity. 02-amenity-nodes.sql matches on `area` where it exists, which
--- attaches the amenity to the nodes around its whole boundary - arriving at any
--- edge counts as arriving. `geom` stays the centroid, for putting a marker on a
--- map, and is what the superseded livability_score() still scores against.
+-- attaches the amenity to every node near or inside the footprint - arriving
+-- anywhere on it counts as arriving. `geom` stays the centroid, for putting a
+-- marker on a map, and is what livability_score() still scores against.
 INSERT INTO amenities (category, name, geom, area)
 SELECT
   CASE

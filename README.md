@@ -36,8 +36,8 @@ A single call to `walkreach_analysis(lng, lat)` does everything:
 3. Score amenities from that traversal — for each category, find the nearest
    reachable one and decay its distance linearly (0 m = full marks,
    1250 m or unreachable = zero), then weight it. A park or school is matched
-   along its whole boundary, so the distance is to the edge you would actually
-   walk up to, not to a centroid sitting somewhere inside it.
+   against its whole footprint, so the distance is to the nearest part of it
+   you could walk up to, not to a centroid sitting somewhere inside it.
 4. Build the bands from the same traversal by taking the reached nodes under
    each distance budget and wrapping them in `ST_ConcaveHull(..., 0.8)`.
 
@@ -177,10 +177,12 @@ on, not oversights:
 
 - The import script has been verified step by step against the existing
   database, but not yet run end to end against an empty one.
-- 166 of 1,060 bus stops still have no network node within 100 m and are
-  invisible to scoring. They are points, so the boundary matching that fixed
-  parks and schools does not help them; the radius is absorbing mapping error
-  and at some point widening it stops being honest.
+- 25 of 1,506 amenities still have no network node in range and are invisible
+  to scoring: 20 bus stops, 3 parks, 2 schools. The bus stops are points, so
+  footprint matching does not help them, and widening the radius past 100 m
+  stops being honest about what it is correcting for. The 3 parks are small
+  ones set back from any footpath — they were matched before only because
+  their centroid happened to fall near a node, which was luck, not reach.
 - The layout is a fixed 380 px panel beside the map, which leaves a phone with
   very little map.
 - Locations are chosen by clicking; there is no address search.

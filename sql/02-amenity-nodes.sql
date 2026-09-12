@@ -4,15 +4,22 @@
 -- Rebuild whenever the amenities or ways tables are reimported (~80 s).
 --
 -- Polygon amenities match on their footprint (amenities.area), so a park is
--- attached to the nodes all the way around its boundary and the walk is
--- measured to whichever edge you approach - reaching any edge is reaching the
--- park. Points match on themselves.
+-- attached to every node within 50 m of it and the walk is measured to
+-- whichever part you approach - reaching any of it is reaching the park. Nodes
+-- strictly inside the footprint match at 0 m, which is usually right (a path
+-- through a park) but not always: a public road drawn through a hospital
+-- campus makes that clinic read as 0 m from the road, whatever the entrance
+-- actually is. Points match on themselves.
 --
 -- The two radii are not the same quantity. For a polygon, the boundary already
 -- is the arrival edge, so 50 m is a real tolerance. For a point, the radius is
 -- absorbing mapping error - a bus stop is tagged on the kerb, not on the
 -- centreline the network follows - so it needs 100 m. Measured over 35 sampled
 -- points, splitting them beats either single radius on every category.
+--
+-- The polygon radius dropping from 100 m to 50 m does cost coverage: 3 small
+-- parks that used to match a node within 100 m of their centroid have nothing
+-- within 50 m of their footprint, and now score as unreachable.
 DROP TABLE IF EXISTS amenity_nodes;
 CREATE TABLE amenity_nodes AS
 SELECT a.id AS amenity_id, a.category, v.id AS node_id
