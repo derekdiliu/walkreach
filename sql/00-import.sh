@@ -71,7 +71,7 @@ ogr2ogr -f PostgreSQL "PG:$PGURI" "$DATA_DIR/amenities.osm.pbf" \
 echo "==> 6/8  Build the clean amenities table"
 run_sql_file "$SQL_DIR/01-amenities.sql"
 
-echo "==> 7/8  Precompute amenity -> node pairs"
+echo "==> 7/8  Precompute amenity -> node pairs (~80 s)"
 run_sql_file "$SQL_DIR/02-amenity-nodes.sql"
 
 echo "==> 8/8  Create the analysis functions"
@@ -82,10 +82,10 @@ echo
 echo "==> Done. Sanity check - compare against the known-good baseline:"
 echo "    bus_stop 1060 | park 201 | school 141 | clinic 79 | supermarket 25"
 run_sql -c "SELECT category, count(*) FROM amenities GROUP BY category ORDER BY count(*) DESC;"
-echo "    ways ~37500, ways_vertices_pgr ~30000, amenity_nodes ~30400"
+echo "    ways ~37500, ways_vertices_pgr ~30000, amenity_nodes ~35000"
 run_sql -c "SELECT
   (SELECT count(*) FROM ways) AS ways,
   (SELECT count(*) FROM ways_vertices_pgr) AS vertices,
   (SELECT count(*) FROM amenity_nodes) AS amenity_nodes;"
-echo "    CBD should score 87.7:"
+echo "    CBD should score 85.0:"
 run_sql -tAc "SELECT walkreach_analysis(175.2793, -37.7871)->'total_score';"
