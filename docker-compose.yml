@@ -1,0 +1,19 @@
+name: walkreach
+
+services:
+  db:
+    image: pgrouting/pgrouting:latest
+    container_name: walkreach-db
+    environment:
+      POSTGRES_USER: walkreach
+      POSTGRES_PASSWORD: walkreach
+      POSTGRES_DB: walkreach
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./initdb:/docker-entrypoint-initdb.d
+    shm_size: 1gb
+
+volumes:
+  pgdata:
