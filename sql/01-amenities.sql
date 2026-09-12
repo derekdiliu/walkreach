@@ -17,15 +17,15 @@ INSERT INTO amenities (category, name, geom)
 SELECT
   CASE
     WHEN t->'shop' = 'supermarket' THEN 'supermarket'
-    WHEN t->'amenity' IN ('clinic','doctors','pharmacy','hospital') THEN 'clinic'
-    WHEN t->'amenity' IN ('school','kindergarten') THEN 'school'
+    WHEN t->'amenity' IN ('clinic','doctors','hospital') THEN 'clinic'
+    WHEN t->'amenity' = 'school' THEN 'school'
     WHEN t->'leisure' = 'park' THEN 'park'
     WHEN t->'highway' = 'bus_stop' OR t->'public_transport' = 'platform' THEN 'bus_stop'
   END,
   t->'name', geom
 FROM (SELECT hstore(other_tags) AS t, geom FROM amenities_points) s
 WHERE t->'shop' = 'supermarket'
-   OR t->'amenity' IN ('clinic','doctors','pharmacy','hospital','school','kindergarten')
+   OR t->'amenity' IN ('clinic','doctors','hospital','school')
    OR t->'leisure' = 'park'
    OR t->'highway' = 'bus_stop'
    OR t->'public_transport' = 'platform';
@@ -45,14 +45,14 @@ INSERT INTO amenities (category, name, geom, area)
 SELECT
   CASE
     WHEN shop = 'supermarket' THEN 'supermarket'
-    WHEN amenity IN ('clinic','doctors','pharmacy','hospital') THEN 'clinic'
-    WHEN amenity IN ('school','kindergarten') THEN 'school'
+    WHEN amenity IN ('clinic','doctors','hospital') THEN 'clinic'
+    WHEN amenity = 'school' THEN 'school'
     WHEN leisure = 'park' THEN 'park'
   END,
   name, ST_Centroid(geom), geom
 FROM amenities_polygons
 WHERE shop = 'supermarket'
-   OR amenity IN ('clinic','doctors','pharmacy','hospital','school','kindergarten')
+   OR amenity IN ('clinic','doctors','hospital','school')
    OR leisure = 'park';
 
 CREATE INDEX amenities_geom_idx ON amenities USING GIST (geom);

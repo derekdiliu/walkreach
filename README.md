@@ -58,6 +58,13 @@ Category weights:
 Every category is always returned, including ones with nothing in range, so
 the UI can explain a score without hardcoding the weights on the client.
 
+Kindergartens are not schools and pharmacies are not clinics, so neither is
+counted. Both were folded in originally, where they made up 83 of 141
+"schools" and 27 of 79 "clinics" — a household without a preschooler gets
+nothing from a kindy being close, and a pharmacy is not somewhere you see a
+doctor, so counting them inflated the two heaviest weights with amenities most
+people cannot use.
+
 ## API
 
 ```
@@ -67,10 +74,10 @@ GET /api/livability?lng=175.2793&lat=-37.7871
 ```jsonc
 {
   "location": { "lng": 175.2793, "lat": -37.7871 },
-  "total_score": 85.0,
+  "total_score": 80.3,
   "breakdown": [
     { "category": "supermarket", "weighted_score": 20.3, "max_score": 30.0, "nearest_m": 403 },
-    { "category": "clinic",      "weighted_score": 24.1, "max_score": 25.0, "nearest_m": 45 },
+    { "category": "clinic",      "weighted_score": 19.4, "max_score": 25.0, "nearest_m": 281 },
     { "category": "school",      "weighted_score": 18.6, "max_score": 20.0, "nearest_m": 87 },
     { "category": "park",        "weighted_score": 12.5, "max_score": 15.0, "nearest_m": 208 },
     { "category": "bus_stop",    "weighted_score": 9.5,  "max_score": 10.0, "nearest_m": 60 }
@@ -126,8 +133,8 @@ functions — then prints counts to check against a known-good baseline.
 |---|---|---|
 | `osm2pgrouting` | `ways` — pedestrian edges, `length_m` in metres | ~37,500 |
 | | `ways_vertices_pgr` — nodes, 98.8% in one connected component | ~30,000 |
-| `01-amenities.sql` | `amenities` — five categories, with polygon footprints | ~1,500 |
-| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs | ~35,000 |
+| `01-amenities.sql` | `amenities` — five categories, with polygon footprints | ~1,400 |
+| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs | ~33,000 |
 | `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` — what the API calls | |
 | `04-livability-score.sql` | `livability_score(lng, lat)` — superseded, kept for comparison | |
 
@@ -177,8 +184,8 @@ on, not oversights:
 
 - The import script has been verified step by step against the existing
   database, but not yet run end to end against an empty one.
-- 25 of 1,506 amenities still have no network node in range and are invisible
-  to scoring: 20 bus stops, 3 parks, 2 schools. The bus stops are points, so
+- 23 of 1,396 amenities still have no network node in range and are invisible
+  to scoring: 20 bus stops and 3 parks. The bus stops are points, so
   footprint matching does not help them, and widening the radius past 100 m
   stops being honest about what it is correcting for. The 3 parks are small
   ones set back from any footpath — they were matched before only because

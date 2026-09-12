@@ -52,6 +52,11 @@ osm2pgrouting \
   --dbname "$PG_DB" --username "$PG_USER" --password "$PG_PASS" \
   --host "$PG_HOST" --port "$PG_PORT" --clean
 
+# Deliberately wider than what 01-amenities.sql categorises: pharmacy and
+# kindergarten are pulled out here but not counted as clinics or schools, so
+# that decision can be revisited by re-running 01 and 02 (a second) rather than
+# this whole step (minutes). amenities_points / amenities_polygons are the raw
+# source; amenities is the categorised view of them.
 echo "==> 4/8  Filter amenities out of the Hamilton extract"
 osmium tags-filter "$DATA_DIR/hamilton.osm.pbf" \
   nwr/shop=supermarket \
@@ -80,12 +85,12 @@ run_sql_file "$SQL_DIR/04-livability-score.sql"
 
 echo
 echo "==> Done. Sanity check - compare against the known-good baseline:"
-echo "    bus_stop 1060 | park 201 | school 141 | clinic 79 | supermarket 25"
+echo "    bus_stop 1060 | park 201 | school 58 | clinic 52 | supermarket 25"
 run_sql -c "SELECT category, count(*) FROM amenities GROUP BY category ORDER BY count(*) DESC;"
-echo "    ways ~37500, ways_vertices_pgr ~30000, amenity_nodes ~35000"
+echo "    ways ~37500, ways_vertices_pgr ~30000, amenity_nodes ~33000"
 run_sql -c "SELECT
   (SELECT count(*) FROM ways) AS ways,
   (SELECT count(*) FROM ways_vertices_pgr) AS vertices,
   (SELECT count(*) FROM amenity_nodes) AS amenity_nodes;"
-echo "    CBD should score 85.0:"
+echo "    CBD should score 80.3:"
 run_sql -tAc "SELECT walkreach_analysis(175.2793, -37.7871)->'total_score';"
