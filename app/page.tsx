@@ -8,6 +8,7 @@ type Breakdown = {
   weighted_score: number;
   max_score: number;
   nearest_m: number | null;
+  nearest_name: string | null;
 };
 type Result = {
   location: { lng: number; lat: number };
@@ -23,6 +24,33 @@ const BANDS = [
   { minutes: 10, color: "#3e93ad", opacity: 0.54 },
   { minutes: 15, color: "#a9dceb", opacity: 0.46 },
 ];
+
+// A score on its own does not tell anyone whether 62 is good. Each band says
+// what the number means in terms of the five essentials WalkReach actually
+// measures, over the 15 minute network walk it measures them within.
+const SCORE_BANDS = [
+  { min: 80, label: "Everything close by",
+    blurb: "All five everyday essentials are a short walk from here." },
+  { min: 60, label: "Mostly walkable",
+    blurb: "Most everyday essentials are within a 15 minute walk." },
+  { min: 40, label: "Some essentials nearby",
+    blurb: "A few essentials are close. Others mean a longer trip." },
+  { min: 20, label: "Limited on foot",
+    blurb: "Most everyday trips from here would need a car or a bus." },
+  { min: 0, label: "Car-dependent",
+    blurb: "Almost nothing is within a 15 minute walk." },
+];
+
+const scoreBand = (score: number) =>
+  SCORE_BANDS.find((b) => score >= b.min) ?? SCORE_BANDS[SCORE_BANDS.length - 1];
+
+const CATEGORY_LABEL: Record<string, string> = {
+  supermarket: "Supermarket",
+  clinic: "Clinic",
+  school: "School",
+  park: "Park",
+  bus_stop: "Bus stop",
+};
 
 const CITY_CENTRE: [number, number] = [175.2793, -37.7871];
 
@@ -325,71 +353,133 @@ export default function Home() {
           <div>
             <div
               style={{
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 14,
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  flexShrink: 0,
+                  border: "1px solid #cfdde2",
+                  borderRadius: 6,
+                  background: "#f2f8fa",
+                  padding: "5px 10px 7px",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 9,
+                    letterSpacing: "0.07em",
+                    textTransform: "uppercase",
+                    color: "#6b8a94",
+                  }}
+                >
+                  out of 100
+                </div>
+                <div
+                  style={{
+                    fontSize: 30,
+                    fontWeight: "bold",
+                    color: "#2c5f6f",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {result.total_score}
+                </div>
+              </div>
+              <div style={{ paddingTop: 2 }}>
+                <div style={{ fontSize: 19, fontWeight: 600, lineHeight: 1.25 }}>
+                  {scoreBand(result.total_score).label}
+                </div>
+                <div style={{ color: "#666", marginTop: 3 }}>
+                  {scoreBand(result.total_score).blurb}
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
                 fontSize: 11,
                 letterSpacing: "0.09em",
                 textTransform: "uppercase",
                 color: "#888",
+                marginTop: 22,
+                marginBottom: 4,
               }}
             >
-              Walkability score
+              Nearest of each
             </div>
-            <div style={{ fontSize: 48, fontWeight: "bold", color: "#2c5f6f" }}>
-              {result.total_score}
-              <span style={{ fontSize: 20, color: "#999" }}> / 100</span>
-            </div>
-            <p style={{ color: "#666", marginTop: 4 }}>
-              Each category scores by how close its nearest amenity is on foot,
-              up to its own maximum.
-            </p>
 
-            <table
-              style={{
-                width: "100%",
-                marginTop: 18,
-                borderCollapse: "collapse",
-              }}
-            >
-              <thead>
-                <tr style={{ color: "#888", fontSize: 12, textAlign: "left" }}>
-                  <th style={{ fontWeight: 400, paddingBottom: 6 }}>
-                    Nearest
-                  </th>
-                  <th style={{ fontWeight: 400, paddingBottom: 6 }}>On foot</th>
-                  <th
-                    style={{
-                      fontWeight: 400,
-                      paddingBottom: 6,
-                      textAlign: "right",
-                    }}
-                  >
-                    Score
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.breakdown.map((b) => (
-                  <tr key={b.category} style={{ borderTop: "1px solid #eee" }}>
-                    <td
-                      style={{ padding: "7px 0", textTransform: "capitalize" }}
+            {result.breakdown.map((b) => (
+              <div
+                key={b.category}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "baseline",
+                  gap: 12,
+                  padding: "9px 0",
+                  borderTop: "1px solid #eee",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 500 }}>
+                    {CATEGORY_LABEL[b.category] ?? b.category}
+                  </div>
+                  {b.nearest_m === null ? (
+                    <div style={{ color: "#666", fontSize: 13 }}>
+                      None within a 15 minute walk
+                    </div>
+                  ) : (
+                    // The distance is the measurement and the name is context,
+                    // so a long name truncates rather than pushing the metres
+                    // onto a line of their own.
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 5,
+                        color: "#666",
+                        fontSize: 13,
+                      }}
                     >
-                      {b.category.replace("_", " ")}
-                    </td>
-                    <td style={{ color: "#666" }}>
-                      {b.nearest_m === null
-                        ? "not within 15 min"
-                        : `${b.nearest_m} m`}
-                    </td>
-                    <td style={{ textAlign: "right", fontWeight: 500 }}>
-                      {b.weighted_score}
-                      <span style={{ color: "#aaa", fontWeight: 400 }}>
-                        {" "}
-                        / {b.max_score}
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {b.nearest_name ?? "Unnamed"}
                       </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <span style={{ flexShrink: 0 }}>
+                        · {b.nearest_m} m walk
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div
+                  style={{
+                    flexShrink: 0,
+                    fontWeight: 500,
+                    color: b.nearest_m === null ? "#aaa" : "#1a1a1a",
+                  }}
+                >
+                  {b.weighted_score}
+                  <span style={{ color: "#aaa", fontWeight: 400 }}>
+                    {" "}
+                    / {b.max_score}
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            <p style={{ color: "#888", fontSize: 12.5, marginTop: 14 }}>
+              Each category scores by how close its nearest one is on foot, up
+              to its own maximum. Distances follow the street network.
+            </p>
           </div>
         )}
 

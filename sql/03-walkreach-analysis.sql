@@ -23,11 +23,14 @@ RETURNS jsonb AS $$
            ('park', 0.15), ('bus_stop', 0.10)
   ),
   nearest AS (
-    -- 每类设施取最近的那一个（米）
-    SELECT an.category, MIN(iso.agg_cost) AS nearest_m
+    -- 每类设施取最近的那一个（米），并带出它的名字，好让面板说出是哪一家。
+    -- DISTINCT ON 而不是 MIN + GROUP BY：同一个查询里既要距离也要那一行的 name。
+    SELECT DISTINCT ON (an.category)
+      an.category, iso.agg_cost AS nearest_m, a.name
     FROM amenity_nodes an
     JOIN iso ON iso.node = an.node_id
-    GROUP BY an.category
+    JOIN amenities a ON a.id = an.amenity_id
+    ORDER BY an.category, iso.agg_cost
   ),
   scored AS (
     -- 最近设施距离转成 0-1 分：0米=1.0, 1250米=0.0，线性衰减。
@@ -37,7 +40,8 @@ RETURNS jsonb AS $$
         GREATEST(0, 1 - COALESCE(n.nearest_m, 1250) / 1250.0) * w.weight * 100
       )::numeric, 1) AS weighted_score,
       round((w.weight * 100)::numeric, 1) AS max_score,
-      round(n.nearest_m::numeric) AS nearest_m
+      round(n.nearest_m::numeric) AS nearest_m,
+      n.name AS nearest_name
     FROM weights w
     LEFT JOIN nearest n ON n.category = w.category
   ),
@@ -111,7 +115,8 @@ RETURNS jsonb AS $$
     'breakdown', COALESCE((
       SELECT jsonb_agg(jsonb_build_object(
         'category', category, 'weighted_score', weighted_score,
-        'max_score', max_score, 'nearest_m', nearest_m
+        'max_score', max_score, 'nearest_m', nearest_m,
+        'nearest_name', nearest_name
       ) ORDER BY category) FROM scored), '[]'::jsonb),
     'isochrone', jsonb_build_object(
       'type', 'FeatureCollection',

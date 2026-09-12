@@ -21,8 +21,9 @@ the numbers reflect the walk you would actually take.
 - **Three isochrone bands** — the area reachable on foot in 5 / 10 / 15 minutes,
   drawn as polygons over the map.
 - **A livability score out of 100**, weighted across five amenity categories.
-- **A per-category breakdown** — how far the nearest one of each is, in walking
-  metres, and how many points that earned out of the category's maximum.
+- **A per-category breakdown** — which supermarket, clinic, school, park and
+  bus stop is nearest, how far each is in walking metres, and how many points
+  that earned out of the category's maximum.
 
 ## How it works
 
@@ -76,11 +77,16 @@ GET /api/livability?lng=175.2793&lat=-37.7871
   "location": { "lng": 175.2793, "lat": -37.7871 },
   "total_score": 80.3,
   "breakdown": [
-    { "category": "supermarket", "weighted_score": 20.3, "max_score": 30.0, "nearest_m": 403 },
-    { "category": "clinic",      "weighted_score": 19.4, "max_score": 25.0, "nearest_m": 281 },
-    { "category": "school",      "weighted_score": 18.6, "max_score": 20.0, "nearest_m": 87 },
-    { "category": "park",        "weighted_score": 12.5, "max_score": 15.0, "nearest_m": 208 },
-    { "category": "bus_stop",    "weighted_score": 9.5,  "max_score": 10.0, "nearest_m": 60 }
+    { "category": "supermarket", "weighted_score": 20.3, "max_score": 30.0,
+      "nearest_m": 403, "nearest_name": "NewSave" },
+    { "category": "clinic",      "weighted_score": 19.4, "max_score": 25.0,
+      "nearest_m": 281, "nearest_name": "New Zealand Blood Service Donor Centre" },
+    { "category": "school",      "weighted_score": 18.6, "max_score": 20.0,
+      "nearest_m": 87,  "nearest_name": "Waikato Institue of Education" },
+    { "category": "park",        "weighted_score": 12.5, "max_score": 15.0,
+      "nearest_m": 208, "nearest_name": "Norris Ward Park" },
+    { "category": "bus_stop",    "weighted_score": 9.5,  "max_score": 10.0,
+      "nearest_m": 60,  "nearest_name": "Transport Centre (Bryce St)" }
   ],
   "isochrone": {
     "type": "FeatureCollection",
