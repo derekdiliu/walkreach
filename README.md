@@ -65,13 +65,13 @@ GET /api/livability?lng=175.2793&lat=-37.7871
 ```jsonc
 {
   "location": { "lng": 175.2793, "lat": -37.7871 },
-  "total_score": 81.6,
+  "total_score": 87.7,
   "breakdown": [
-    { "category": "supermarket", "weighted_score": 19.5, "max_score": 30.0, "nearest_m": 436 },
-    { "category": "clinic",      "weighted_score": 23.3, "max_score": 25.0, "nearest_m": 87 },
-    { "category": "school",      "weighted_score": 18.3, "max_score": 20.0, "nearest_m": 105 },
-    { "category": "park",        "weighted_score": 11.6, "max_score": 15.0, "nearest_m": 280 },
-    { "category": "bus_stop",    "weighted_score": 8.9,  "max_score": 10.0, "nearest_m": 136 }
+    { "category": "supermarket", "weighted_score": 22.6, "max_score": 30.0, "nearest_m": 310 },
+    { "category": "clinic",      "weighted_score": 24.1, "max_score": 25.0, "nearest_m": 45 },
+    { "category": "school",      "weighted_score": 19.2, "max_score": 20.0, "nearest_m": 47 },
+    { "category": "park",        "weighted_score": 12.3, "max_score": 15.0, "nearest_m": 229 },
+    { "category": "bus_stop",    "weighted_score": 9.5,  "max_score": 10.0, "nearest_m": 60 }
   ],
   "isochrone": {
     "type": "FeatureCollection",
@@ -125,15 +125,15 @@ functions — then prints counts to check against a known-good baseline.
 | `osm2pgrouting` | `ways` — pedestrian edges, `length_m` in metres | ~37,500 |
 | | `ways_vertices_pgr` — nodes, 98.8% in one connected component | ~30,000 |
 | `01-amenities.sql` | `amenities` — five categories, GiST indexed | ~1,500 |
-| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) pairs within 50 m | ~10,100 |
+| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) pairs within 100 m | ~30,400 |
 | `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` — what the API calls | |
 | `04-livability-score.sql` | `livability_score(lng, lat)` — superseded, kept for comparison | |
 
 The numbered SQL files are also safe to run on their own, in order, when you
-only need to rebuild part of it. `02` is the slow one — it exists so that
-scoring is an equality join on node id rather than a spatial join per request,
-and it has to be rebuilt whenever `amenities` or `ways` changes. The 50 m
-matching radius lives there, not in the scoring function.
+only need to rebuild part of it. `02` exists so that scoring is an equality
+join on node id rather than a spatial join per request, and has to be rebuilt
+whenever `amenities` or `ways` changes — about 20 seconds. The 100 m matching
+radius lives there, not in the scoring function.
 
 ### 3. App
 
@@ -175,8 +175,13 @@ on, not oversights:
 
 - The import script has been verified step by step against the existing
   database, but not yet run end to end against an empty one.
-- 318 of 1,506 amenities have no network node within 50 m — mostly polygon
-  centroids — and are invisible to scoring.
+- Polygon amenities are reduced to their centroid, which systematically
+  overstates the walk to large parks: the centroid of a park whose edge runs
+  along the footpath can sit 200 m inside it. Raising the matching radius to
+  100 m brought coverage from 1,188 to 1,458 of 1,506 amenities, but it treats
+  the centroid as the destination rather than fixing it — one park now scores
+  as 0 m away because its centroid landed on a network node. Matching to the
+  nearest point on the boundary is the real fix.
 - The layout is a fixed 380 px panel beside the map, which leaves a phone with
   very little map.
 - Locations are chosen by clicking; there is no address search.
