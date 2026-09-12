@@ -10,6 +10,7 @@ type Breakdown = {
   nearest_m: number | null;
   nearest_name: string | null;
 };
+type Place = { lng: number; lat: number; label: string };
 type Result = {
   location: { lng: number; lat: number };
   total_score: number;
@@ -63,6 +64,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [offNetwork, setOffNetwork] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
+  const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [choices, setChoices] = useState<Place[] | null>(null);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
 
   useEffect(() => {
     let map: any;
@@ -188,9 +193,51 @@ export default function Home() {
     };
   }, []);
 
+  const goTo = (lng: number, lat: number) => {
+    mapRef.current?.flyTo({ center: [lng, lat], zoom: 15 });
+    analyseRef.current?.(lng, lat);
+  };
+
   const tryCityCentre = () => {
     mapRef.current?.flyTo({ center: CITY_CENTRE, zoom: 14 });
     analyseRef.current?.(CITY_CENTRE[0], CITY_CENTRE[1]);
+  };
+
+  // Submit-only, no lookup per keystroke: Nominatim's usage policy rules out
+  // autocomplete, and the answer is worth a deliberate press anyway.
+  const search = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = query.trim();
+    if (q.length < 3) return;
+
+    setSearching(true);
+    setChoices(null);
+    setSearchNote(null);
+    try {
+      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      const { results } = (await res.json()) as { results?: Place[] };
+
+      if (!results || results.length === 0) {
+        setSearchNote(
+          "No match in Hamilton. Try a street name, or click the map.",
+        );
+      } else if (results.length === 1) {
+        goTo(results[0].lng, results[0].lat);
+      } else {
+        // A street runs for kilometres and scores differently along it, so
+        // picking the top hit silently would be picking one end of it.
+        setChoices(results);
+      }
+    } catch {
+      setSearchNote("Address lookup is unavailable. Click the map instead.");
+    }
+    setSearching(false);
+  };
+
+  const choose = (place: Place) => {
+    setChoices(null);
+    setQuery(place.label);
+    goTo(place.lng, place.lat);
   };
 
   return (
@@ -242,8 +289,8 @@ export default function Home() {
                 }}
               >
                 <li style={{ marginBottom: 6 }}>
-                  Click anywhere on the map — a street, a suburb, a place
-                  you are thinking of renting.
+                  Search an address, or click anywhere on the map — a
+                  street, a suburb, a place you are thinking of renting.
                 </li>
                 <li style={{ marginBottom: 6 }}>
                   See how far you can walk from there in 5, 10 and 15 minutes.
@@ -303,9 +350,85 @@ export default function Home() {
         }}
       >
         <h1 style={{ fontSize: 24, marginBottom: 2 }}>WalkReach</h1>
-        <p style={{ color: "#666", marginBottom: 20 }}>
+        <p style={{ color: "#666", marginBottom: 14 }}>
           Walking accessibility in Hamilton, NZ
         </p>
+
+        <form onSubmit={search} style={{ display: "flex", gap: 6 }}>
+          <input
+            id="address"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Street, suburb or place"
+            aria-label="Search for an address in Hamilton"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: "8px 10px",
+              fontSize: 14,
+              fontFamily: "inherit",
+              color: "inherit",
+              border: "1px solid #ccc",
+              borderRadius: 6,
+              background: "#fff",
+            }}
+          />
+          <button
+            type="submit"
+            disabled={searching || query.trim().length < 3}
+            style={{
+              flexShrink: 0,
+              background: "#2c5f6f",
+              color: "#fff",
+              border: "none",
+              borderRadius: 6,
+              padding: "8px 14px",
+              fontSize: 14,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              opacity: searching || query.trim().length < 3 ? 0.45 : 1,
+            }}
+          >
+            {searching ? "…" : "Search"}
+          </button>
+        </form>
+
+        {searchNote && (
+          <p style={{ color: "#666", fontSize: 13, marginTop: 8 }}>
+            {searchNote}
+          </p>
+        )}
+
+        {choices && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ color: "#666", fontSize: 13, marginBottom: 4 }}>
+              Which one?
+            </div>
+            {choices.map((c) => (
+              <button
+                key={c.label}
+                onClick={() => choose(c)}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  background: "none",
+                  border: "none",
+                  borderTop: "1px solid #eee",
+                  padding: "7px 0",
+                  fontSize: 13.5,
+                  fontFamily: "inherit",
+                  color: "#2c5f6f",
+                  cursor: "pointer",
+                }}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ height: 20 }} />
 
         {!result && !loading && (
           <div>
@@ -313,10 +436,10 @@ export default function Home() {
               How much of everyday life is within a short walk?
             </p>
             <p style={{ marginBottom: 10 }}>
-              Click any point on the map. WalkReach traces how far you can
-              actually walk from there in 5, 10 and 15 minutes, then scores how
-              close the nearest supermarket, clinic, school, park and bus stop
-              are.
+              Search an address above, or click any point on the map.
+              WalkReach traces how far you can actually walk from there in 5,
+              10 and 15 minutes, then scores how close the nearest supermarket,
+              clinic, school, park and bus stop are.
             </p>
             <p style={{ color: "#666", marginBottom: 18 }}>
               Distances follow the real street and footpath network, not
@@ -452,7 +575,10 @@ export default function Home() {
                           whiteSpace: "nowrap",
                         }}
                       >
-                        {b.nearest_name ?? "Unnamed"}
+                        {b.nearest_name ??
+                          `Unnamed ${(
+                            CATEGORY_LABEL[b.category] ?? b.category
+                          ).toLowerCase()}`}
                       </span>
                       <span style={{ flexShrink: 0 }}>
                         · {b.nearest_m} m walk

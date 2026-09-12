@@ -5,9 +5,9 @@
 > end to end, but the layout is desktop-only and nothing is deployed yet. See [Limitations](#limitations) and
 > [Roadmap](#roadmap) for what is still open.
 
-An interactive walkability tool for Hamilton, New Zealand. Click anywhere on the
-map and WalkReach shows you how far you can actually walk in 5, 10 and 15
-minutes — and how well that area is served by supermarkets, clinics, schools,
+An interactive walkability tool for Hamilton, New Zealand. Search an address
+or click anywhere on the map, and WalkReach shows you how far you can actually
+walk in 5, 10 and 15 minutes — and how well that area is served by supermarkets, clinics, schools,
 parks and bus stops.
 
 The point is **network distance, not straight-line distance**. A supermarket
@@ -98,6 +98,15 @@ GET /api/livability?lng=175.2793&lat=-37.7871
 A coordinate that is off the network (in the middle of the river, say) comes
 back with `total_score: 0` and an empty feature list rather than an error.
 
+Addresses are resolved by [Nominatim](https://nominatim.openstreetmap.org),
+proxied through `/api/geocode` so the request carries a User-Agent identifying
+the project, as Nominatim's usage policy asks. Results are restricted to the
+same Hamilton bounding box the network is clipped to — there is no point
+resolving an address the router cannot reach. The lookup runs on submit rather
+than per keystroke, which that policy also requires. A query matching more
+than one place asks which one, since a street runs for kilometres and scores
+differently along its length.
+
 ## Tech stack
 
 - **PostgreSQL 16** + **PostGIS 3.5** + **pgRouting 3.7.3** — network storage,
@@ -171,7 +180,8 @@ from `public/`.
 app/
   page.tsx                     map, side panel, onboarding card
   layout.tsx
-  api/livability/route.ts      the single endpoint
+  api/livability/route.ts      the scoring endpoint
+  api/geocode/route.ts         Nominatim proxy for address search
 sql/
   00-import.sh                 OSM → database, one shot
   01-amenities.sql             categorised amenities table
@@ -198,13 +208,12 @@ on, not oversights:
   their centroid happened to fall near a node, which was luck, not reach.
 - The layout is a fixed 380 px panel beside the map, which leaves a phone with
   very little map.
-- Locations are chosen by clicking; there is no address search.
 - Concave hull bands are one reasonable choice among several; buffer-and-union
   has not been compared yet.
 
 ## Roadmap
 
-- Address search, and a compare-two-locations mode
+- A compare-two-locations mode
 - Highlight the walking path to a chosen amenity
 - Responsive layout
 - Grid pre-computation and caching to hold response times under ~2 s
