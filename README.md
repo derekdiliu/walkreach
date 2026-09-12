@@ -134,7 +134,7 @@ functions — then prints counts to check against a known-good baseline.
 The numbered SQL files are also safe to run on their own, in order, when you
 only need to rebuild part of it. `02` exists so that scoring is an equality
 join on node id rather than a spatial join per request, and has to be rebuilt
-whenever `amenities` or `ways` changes — about 80 seconds. The matching radii
+whenever `amenities` or `ways` changes — about a second. The matching radii
 live there, not in the scoring function.
 
 ### 3. App

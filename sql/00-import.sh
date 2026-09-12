@@ -71,7 +71,7 @@ ogr2ogr -f PostgreSQL "PG:$PGURI" "$DATA_DIR/amenities.osm.pbf" \
 echo "==> 6/8  Build the clean amenities table"
 run_sql_file "$SQL_DIR/01-amenities.sql"
 
-echo "==> 7/8  Precompute amenity -> node pairs (~80 s)"
+echo "==> 7/8  Precompute amenity -> node pairs"
 run_sql_file "$SQL_DIR/02-amenity-nodes.sql"
 
 echo "==> 8/8  Create the analysis functions"
