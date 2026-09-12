@@ -206,8 +206,6 @@ on, not oversights:
   stops being honest about what it is correcting for. The 3 parks are small
   ones set back from any footpath — they were matched before only because
   their centroid happened to fall near a node, which was luck, not reach.
-- The layout is a fixed 380 px panel beside the map, which leaves a phone with
-  very little map.
 - Concave hull bands are one reasonable choice among several; buffer-and-union
   has not been compared yet.
 
@@ -215,7 +213,6 @@ on, not oversights:
 
 - A compare-two-locations mode
 - Highlight the walking path to a chosen amenity
-- Responsive layout
 - Grid pre-computation and caching to hold response times under ~2 s
 - Deployment with PostGIS and pgRouting co-located
 

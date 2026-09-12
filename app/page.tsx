@@ -241,9 +241,9 @@ export default function Home() {
   };
 
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      <div style={{ flex: 1, position: "relative" }}>
-        <div ref={mapContainer} style={{ height: "100%" }} />
+    <div className="layout">
+      <div className="map-pane">
+        <div ref={mapContainer} />
         {showWelcome && (
           <div
             style={{
@@ -259,6 +259,7 @@ export default function Home() {
             }}
           >
             <div
+              className="welcome-card"
               style={{
                 pointerEvents: "auto",
                 background: "#ffffff",
@@ -336,19 +337,7 @@ export default function Home() {
           </div>
         )}
       </div>
-      <aside
-        style={{
-          width: 380,
-          flexShrink: 0,
-          padding: "28px 24px",
-          overflowY: "auto",
-          background: "#ffffff",
-          color: "#1a1a1a",
-          borderLeft: "1px solid #e2e2e2",
-          fontSize: 14,
-          lineHeight: 1.55,
-        }}
-      >
+      <aside className="panel">
         <h1 style={{ fontSize: 24, marginBottom: 2 }}>WalkReach</h1>
         <p style={{ color: "#666", marginBottom: 14 }}>
           Walking accessibility in Hamilton, NZ

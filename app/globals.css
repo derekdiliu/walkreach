@@ -47,3 +47,62 @@ a {
     color-scheme: dark;
   }
 }
+
+/* Layout lives here rather than inline because it is the one part of the page
+   that has to answer to viewport width, and inline styles cannot hold a media
+   query. Everything else in page.tsx stays inline. */
+
+.layout {
+  display: flex;
+  height: 100vh;
+}
+
+.map-pane {
+  flex: 1;
+  position: relative;
+}
+
+.map-pane > div {
+  height: 100%;
+}
+
+.panel {
+  width: 380px;
+  flex-shrink: 0;
+  padding: 28px 24px;
+  overflow-y: auto;
+  background: #ffffff;
+  color: #1a1a1a;
+  border-left: 1px solid #e2e2e2;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* Stacked below 760px: a 380px panel beside the map leaves a phone almost no
+   map, and the map is where the answer is. The map keeps a little over half
+   the first screen and the panel scrolls with the page under it. */
+@media (max-width: 760px) {
+  .layout {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .map-pane {
+    flex: none;
+    height: 52vh;
+    min-height: 260px;
+  }
+
+  .panel {
+    width: 100%;
+    overflow-y: visible;
+    border-left: none;
+    border-top: 1px solid #e2e2e2;
+    padding: 20px 18px 32px;
+  }
+
+  .welcome-card {
+    padding: 22px 20px !important;
+  }
+}
