@@ -2,8 +2,10 @@
 
 > **Work in progress.** This is an active COMPX576 research project, not a
 > finished product. The core — network routing, scoring and isochrones — works
-> end to end, but the layout is desktop-only and nothing is deployed yet. See [Limitations](#limitations) and
+> end to end and is live, but see [Limitations](#limitations) and
 > [Roadmap](#roadmap) for what is still open.
+
+**Live:** https://walkreach.australiaeast.cloudapp.azure.com
 
 An interactive walkability tool for Hamilton, New Zealand. Search an address
 or click anywhere on the map, and WalkReach shows you how far you can actually
@@ -221,8 +223,10 @@ docker compose pull app && docker compose up -d app
 
 ```
 app/
-  page.tsx                     map, side panel, onboarding card
+  page.tsx                     map, side panel, onboarding card, compare mode
   layout.tsx
+  site-nav.tsx                 top bar
+  how-it-works/page.tsx        method, weights and limitations for readers
   api/livability/route.ts      the scoring endpoint
   api/geocode/route.ts         Nominatim proxy for address search
 sql/
@@ -263,7 +267,6 @@ on, not oversights:
 
 - Highlight the walking path to a chosen amenity
 - Grid pre-computation and caching to hold response times under ~2 s
-- Deployment with PostGIS and pgRouting co-located
 
 ## About
 
