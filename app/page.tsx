@@ -338,11 +338,6 @@ export default function Home() {
         )}
       </div>
       <aside className="panel">
-        <h1 style={{ fontSize: 24, marginBottom: 2 }}>WalkReach</h1>
-        <p style={{ color: "#666", marginBottom: 14 }}>
-          Walking accessibility in Hamilton, NZ
-        </p>
-
         <form onSubmit={search} style={{ display: "flex", gap: 6 }}>
           <input
             id="address"
