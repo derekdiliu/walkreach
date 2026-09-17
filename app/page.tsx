@@ -17,14 +17,35 @@ type Result = {
   breakdown: Breakdown[];
   isochrone: { type: string; features: any[] };
 };
+type LngLat = { lng: number; lat: number };
+type SlotKey = "a" | "b";
+type Slot = {
+  // label is null for a point clicked on the map rather than searched for
+  point: (LngLat & { label: string | null }) | null;
+  result: Result | null;
+  loading: boolean;
+};
 
 const EMPTY_GEOJSON = { type: "FeatureCollection" as const, features: [] };
+const EMPTY_SLOT: Slot = { point: null, result: null, loading: false };
 
 const BANDS = [
   { minutes: 5, color: "#0d3b4f", opacity: 0.66 },
   { minutes: 10, color: "#3e93ad", opacity: 0.54 },
   { minutes: 15, color: "#a9dceb", opacity: 0.46 },
 ];
+
+const SLOT_COLOR: Record<SlotKey, string> = { a: "#1f78b4", b: "#e8710a" };
+const COMPARE_OPACITY = 0.38;
+
+const isOffNetwork = (result: Result) => result.isochrone.features.length === 0;
+
+const formatPoint = (p: LngLat) => `${p.lng.toFixed(5)},${p.lat.toFixed(5)}`;
+
+const parsePoint = (value: string | null): LngLat | null => {
+  const [lng, lat] = (value ?? "").split(",").map(Number);
+  return Number.isFinite(lng) && Number.isFinite(lat) ? { lng, lat } : null;
+};
 
 // A score on its own does not tell anyone whether 62 is good. Each band says
 // what the number means in terms of the five essentials WalkReach actually
@@ -58,20 +79,101 @@ const CITY_CENTRE: [number, number] = [175.2793, -37.7871];
 export default function Home() {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const analyseRef = useRef<((lng: number, lat: number) => void) | null>(null);
-  const [result, setResult] = useState<Result | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [offNetwork, setOffNetwork] = useState(false);
+  const markerClassRef = useRef<any>(null);
+  const markersRef = useRef<Record<SlotKey, any>>({ a: null, b: null });
+  // Bumped each time a slot is re-placed or cleared, so a response for a point
+  // that is no longer there is dropped rather than drawn over its replacement.
+  const requestRef = useRef<Record<SlotKey, number>>({ a: 0, b: 0 });
+  const clickRef = useRef<((lng: number, lat: number) => void) | null>(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [slots, setSlots] = useState<Record<SlotKey, Slot>>({
+    a: EMPTY_SLOT,
+    b: EMPTY_SLOT,
+  });
+  const [compare, setCompare] = useState(false);
+  const [active, setActive] = useState<SlotKey>("a");
   const [showWelcome, setShowWelcome] = useState(true);
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [choices, setChoices] = useState<Place[] | null>(null);
   const [searchNote, setSearchNote] = useState<string | null>(null);
 
+  const { result, loading } = slots.a;
+  const offNetwork = !!result && isOffNetwork(result);
+
+  const updateSlot = (key: SlotKey, patch: Partial<Slot>) =>
+    setSlots((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
+
+  // A click can still land before the style has finished parsing, so hold
+  // the data until the source is there rather than dropping it.
+  const setIsochrone = (key: SlotKey, data: any) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource(`isochrone-${key}`);
+    if (source) source.setData(data);
+    else
+      map.once("styledata", () =>
+        map.getSource(`isochrone-${key}`).setData(data),
+      );
+  };
+
+  const putMarker = (key: SlotKey, lng: number, lat: number, coloured: boolean) => {
+    markersRef.current[key]?.remove();
+    markersRef.current[key] = new markerClassRef.current(
+      coloured ? { color: SLOT_COLOR[key] } : {},
+    )
+      .setLngLat([lng, lat])
+      .addTo(mapRef.current);
+  };
+
+  const analyse = async (
+    key: SlotKey,
+    lng: number,
+    lat: number,
+    label: string | null,
+    coloured: boolean,
+  ) => {
+    setShowWelcome(false);
+    putMarker(key, lng, lat, coloured);
+    const request = ++requestRef.current[key];
+
+    updateSlot(key, { point: { lng, lat, label }, result: null, loading: true });
+    setIsochrone(key, EMPTY_GEOJSON);
+
+    let data: Result | null;
+    try {
+      const res = await fetch(`/api/livability?lng=${lng}&lat=${lat}`);
+      data = res.ok ? await res.json() : null;
+    } catch {
+      data = null;
+    }
+
+    if (request !== requestRef.current[key]) return;
+    updateSlot(key, { result: data, loading: false });
+    if (data) setIsochrone(key, data.isochrone);
+  };
+
+  // Frame both walks, not just both pins: each can reach 1,250 m out, which
+  // at Hamilton's latitude is about 0.0112 degrees of latitude and 0.0142 of
+  // longitude.
+  const fitBoth = (p: LngLat, q: LngLat) =>
+    mapRef.current?.fitBounds(
+      [
+        [Math.min(p.lng, q.lng) - 0.0142, Math.min(p.lat, q.lat) - 0.0112],
+        [Math.max(p.lng, q.lng) + 0.0142, Math.max(p.lat, q.lat) + 0.0112],
+      ],
+      { padding: 24 },
+    );
+
   useEffect(() => {
     let map: any;
     let cancelled = false;
+
+    // Read the shared points now: once a point is placed, the effect that
+    // mirrors state into the address bar rewrites the query string.
+    const params = new URLSearchParams(window.location.search);
+    const sharedA = parsePoint(params.get("a"));
+    const sharedB = parsePoint(params.get("b"));
 
     (async () => {
       const { Map: MapLibreMap, Marker, setWorkerUrl } = await import(
@@ -97,14 +199,15 @@ export default function Home() {
               tileSize: 256,
               attribution: "© OpenStreetMap contributors",
             },
-            isochrone: { type: "geojson", data: EMPTY_GEOJSON },
+            "isochrone-a": { type: "geojson", data: EMPTY_GEOJSON },
+            "isochrone-b": { type: "geojson", data: EMPTY_GEOJSON },
           },
           layers: [
             { id: "osm", type: "raster", source: "osm" },
             {
               id: "isochrone-fill",
               type: "fill",
-              source: "isochrone",
+              source: "isochrone-a",
               paint: {
                 // each band gets its own colour AND opacity, so the three
                 // rings read as distinct steps rather than one wash
@@ -135,11 +238,35 @@ export default function Home() {
             {
               id: "isochrone-outline",
               type: "line",
-              source: "isochrone",
+              source: "isochrone-a",
               paint: {
                 "line-color": "#ffffff",
                 "line-width": 1.5,
                 "line-opacity": 0.9,
+              },
+            },
+            // Comparing, each place fills its whole 15 minute walk in one
+            // colour. The bands are separate rings, so filling all three
+            // gives the full area; two sets of three shades on one map
+            // could not be told apart.
+            {
+              id: "compare-a-fill",
+              type: "fill",
+              source: "isochrone-a",
+              layout: { visibility: "none" },
+              paint: {
+                "fill-color": SLOT_COLOR.a,
+                "fill-opacity": COMPARE_OPACITY,
+              },
+            },
+            {
+              id: "compare-b-fill",
+              type: "fill",
+              source: "isochrone-b",
+              layout: { visibility: "none" },
+              paint: {
+                "fill-color": SLOT_COLOR.b,
+                "fill-opacity": COMPARE_OPACITY,
               },
             },
           ],
@@ -149,58 +276,96 @@ export default function Home() {
       });
 
       mapRef.current = map;
+      markerClassRef.current = Marker;
+      setMapReady(true);
+      map.on("click", (e: any) => clickRef.current?.(e.lngLat.lng, e.lngLat.lat));
 
-      // A click can still land before the style has finished parsing, so hold
-      // the data until the source is there rather than dropping it.
-      const setIsochrone = (data: any) => {
-        const source = map.getSource("isochrone");
-        if (source) source.setData(data);
-        else map.once("styledata", () => map.getSource("isochrone").setData(data));
-      };
-
-      const analyse = async (lng: number, lat: number) => {
-        setShowWelcome(false);
-        if (markerRef.current) markerRef.current.remove();
-        markerRef.current = new Marker().setLngLat([lng, lat]).addTo(map);
-
-        setLoading(true);
-        setResult(null);
-        setOffNetwork(false);
-        setIsochrone(EMPTY_GEOJSON);
-
-        try {
-          const res = await fetch(`/api/livability?lng=${lng}&lat=${lat}`);
-          const data: Result = await res.json();
-
-          setResult(data);
-          setOffNetwork(data.isochrone.features.length === 0);
-          setIsochrone(data.isochrone);
-        } catch {
-          setResult(null);
-        }
-        setLoading(false);
-      };
-
-      analyseRef.current = analyse;
-      map.on("click", (e: any) => analyse(e.lngLat.lng, e.lngLat.lat));
+      // A shared link opens on what was shared, not on the welcome card.
+      if (sharedA && sharedB) {
+        setCompare(true);
+        setActive("b");
+        analyse("a", sharedA.lng, sharedA.lat, null, true);
+        analyse("b", sharedB.lng, sharedB.lat, null, true);
+        fitBoth(sharedA, sharedB);
+      } else if (sharedA) {
+        analyse("a", sharedA.lng, sharedA.lat, null, false);
+        map.jumpTo({ center: [sharedA.lng, sharedA.lat], zoom: 15 });
+      }
     })();
 
     return () => {
       cancelled = true;
       if (map) map.remove();
       mapRef.current = null;
-      analyseRef.current = null;
+      markersRef.current = { a: null, b: null };
     };
   }, []);
 
-  const goTo = (lng: number, lat: number) => {
-    mapRef.current?.flyTo({ center: [lng, lat], zoom: 15 });
-    analyseRef.current?.(lng, lat);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map) return;
+
+    const apply = () => {
+      for (const id of ["isochrone-fill", "isochrone-outline"])
+        map.setLayoutProperty(id, "visibility", compare ? "none" : "visible");
+      for (const id of ["compare-a-fill", "compare-b-fill"])
+        map.setLayoutProperty(id, "visibility", compare ? "visible" : "none");
+    };
+    // Not isStyleLoaded(): it stays false while any tile is still loading,
+    // and "load" has long since fired by then, so the switch would never
+    // apply. The layers existing is all setLayoutProperty needs.
+    if (map.getLayer("compare-a-fill")) apply();
+    else map.once("styledata", apply);
+  }, [compare, mapReady]);
+
+  // Mirror the placed points into the address bar, so copying the URL shares
+  // exactly what is on screen.
+  useEffect(() => {
+    const a = slots.a.point;
+    const b = slots.b.point;
+    if (!a) return;
+    const qs = `?a=${formatPoint(a)}` + (b ? `&b=${formatPoint(b)}` : "");
+    window.history.replaceState(null, "", qs);
+  }, [slots.a.point, slots.b.point]);
+
+  const setPoint = (lng: number, lat: number, label: string | null) => {
+    analyse(active, lng, lat, label, compare);
+    // B is almost always what comes after A, so move on to it.
+    if (compare && active === "a" && !slots.b.point) setActive("b");
+  };
+
+  // The map's click handler is bound once, so point it at the latest state.
+  useEffect(() => {
+    clickRef.current = (lng, lat) => setPoint(lng, lat, null);
+  });
+
+  const setMode = (on: boolean) => {
+    if (on === compare) return;
+    const a = slots.a.point;
+    if (a) putMarker("a", a.lng, a.lat, on);
+    if (!on) {
+      requestRef.current.b++;
+      markersRef.current.b?.remove();
+      markersRef.current.b = null;
+      setIsochrone("b", EMPTY_GEOJSON);
+      updateSlot("b", EMPTY_SLOT);
+    }
+    setCompare(on);
+    setActive(on && a ? "b" : "a");
+    setChoices(null);
+    setSearchNote(null);
+  };
+
+  const goTo = (place: Place) => {
+    const other = slots[active === "a" ? "b" : "a"].point;
+    if (compare && other) fitBoth(place, other);
+    else mapRef.current?.flyTo({ center: [place.lng, place.lat], zoom: 15 });
+    setPoint(place.lng, place.lat, place.label);
   };
 
   const tryCityCentre = () => {
     mapRef.current?.flyTo({ center: CITY_CENTRE, zoom: 14 });
-    analyseRef.current?.(CITY_CENTRE[0], CITY_CENTRE[1]);
+    setPoint(CITY_CENTRE[0], CITY_CENTRE[1], null);
   };
 
   // Submit-only, no lookup per keystroke: Nominatim's usage policy rules out
@@ -222,7 +387,7 @@ export default function Home() {
           "No match in Hamilton. Try a street name, or click the map.",
         );
       } else if (results.length === 1) {
-        goTo(results[0].lng, results[0].lat);
+        goTo(results[0]);
       } else {
         // A street runs for kilometres and scores differently along it, so
         // picking the top hit silently would be picking one end of it.
@@ -237,7 +402,7 @@ export default function Home() {
   const choose = (place: Place) => {
     setChoices(null);
     setQuery(place.label);
-    goTo(place.lng, place.lat);
+    goTo(place);
   };
 
   return (
@@ -338,12 +503,95 @@ export default function Home() {
         )}
       </div>
       <aside className="panel">
+        <div
+          role="group"
+          aria-label="Mode"
+          style={{
+            display: "flex",
+            border: "1px solid #2c5f6f",
+            borderRadius: 6,
+            overflow: "hidden",
+            marginBottom: 12,
+          }}
+        >
+          {[false, true].map((on) => (
+            <button
+              key={String(on)}
+              onClick={() => setMode(on)}
+              aria-pressed={compare === on}
+              style={{
+                flex: 1,
+                padding: "7px 0",
+                border: "none",
+                background: compare === on ? "#2c5f6f" : "#fff",
+                color: compare === on ? "#fff" : "#2c5f6f",
+                fontSize: 13.5,
+                fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+            >
+              {on ? "Compare two places" : "One place"}
+            </button>
+          ))}
+        </div>
+
+        {compare && (
+          <>
+            <div style={{ display: "flex", gap: 6 }}>
+              {(["a", "b"] as const).map((key) => {
+                const point = slots[key].point;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActive(key)}
+                    aria-pressed={active === key}
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      padding: "6px 8px",
+                      border: `2px solid ${active === key ? SLOT_COLOR[key] : "#e2e2e2"}`,
+                      borderRadius: 6,
+                      background: "#fff",
+                      fontSize: 13,
+                      fontFamily: "inherit",
+                      color: point ? "#1a1a1a" : "#888",
+                      textAlign: "left",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <SlotBadge slotKey={key} />
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {point ? (point.label ?? "Pin on the map") : "Not set"}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ color: "#666", fontSize: 13, margin: "6px 0 10px" }}>
+              Click the map or search to place {active.toUpperCase()}.
+            </p>
+          </>
+        )}
+
         <form onSubmit={search} style={{ display: "flex", gap: 6 }}>
           <input
             id="address"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Street, suburb or place"
+            placeholder={
+              compare
+                ? `Search for place ${active.toUpperCase()}`
+                : "Street, suburb or place"
+            }
             aria-label="Search for an address in Hamilton"
             style={{
               flex: 1,
@@ -414,7 +662,7 @@ export default function Home() {
 
         <div style={{ height: 20 }} />
 
-        {!result && !loading && (
+        {!compare && !result && !loading && (
           <div>
             <p style={{ fontWeight: 600, marginBottom: 10 }}>
               How much of everyday life is within a short walk?
@@ -447,16 +695,18 @@ export default function Home() {
           </div>
         )}
 
-        {loading && <p style={{ color: "#666" }}>Calculating…</p>}
+        {!compare && loading && (
+          <p style={{ color: "#666" }}>Calculating…</p>
+        )}
 
-        {offNetwork && (
+        {!compare && offNetwork && (
           <p style={{ color: "#a33" }}>
             This location is outside the Hamilton walking network, so no
             catchment could be computed. Try a point inside the city.
           </p>
         )}
 
-        {result && !offNetwork && (
+        {!compare && result && !offNetwork && (
           <div>
             <div
               style={{
@@ -593,33 +843,271 @@ export default function Home() {
           </div>
         )}
 
+        {compare && <CompareResults a={slots.a} b={slots.b} />}
+
         <div style={{ marginTop: 26, fontSize: 13, color: "#666" }}>
-          <div style={{ marginBottom: 6 }}>Walking time from the pin</div>
-          {BANDS.map((band) => (
-            <div
-              key={band.minutes}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "2px 0",
-              }}
-            >
-              <span
-                style={{
-                  width: 14,
-                  height: 14,
-                  background: band.color,
-                  opacity: band.opacity,
-                  border: "1px solid #fff",
-                  outline: "1px solid #ddd",
-                }}
-              />
-              {band.minutes} minutes
-            </div>
-          ))}
+          {compare ? (
+            <>
+              <div style={{ marginBottom: 6 }}>15 minute walk from each place</div>
+              {(["a", "b"] as const).map((key) => (
+                <div
+                  key={key}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "2px 0",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 14,
+                      height: 14,
+                      background: SLOT_COLOR[key],
+                      opacity: COMPARE_OPACITY,
+                      border: "1px solid #fff",
+                      outline: "1px solid #ddd",
+                    }}
+                  />
+                  Place {key.toUpperCase()}
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              <div style={{ marginBottom: 6 }}>Walking time from the pin</div>
+              {BANDS.map((band) => (
+                <div
+                  key={band.minutes}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "2px 0",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 14,
+                      height: 14,
+                      background: band.color,
+                      opacity: band.opacity,
+                      border: "1px solid #fff",
+                      outline: "1px solid #ddd",
+                    }}
+                  />
+                  {band.minutes} minutes
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </aside>
+    </div>
+  );
+}
+
+function SlotBadge({ slotKey }: { slotKey: SlotKey }) {
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        width: 18,
+        height: 18,
+        borderRadius: "50%",
+        background: SLOT_COLOR[slotKey],
+        color: "#fff",
+        fontSize: 11,
+        fontWeight: 700,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {slotKey.toUpperCase()}
+    </span>
+  );
+}
+
+function CompareResults({ a, b }: { a: Slot; b: Slot }) {
+  const usable = (slot: Slot) =>
+    slot.result && !isOffNetwork(slot.result) ? slot.result : null;
+  const results = { a: usable(a), b: usable(b) };
+  const categories = (results.a ?? results.b)?.breakdown.map((r) => r.category);
+
+  const summary = (key: SlotKey, slot: Slot) => {
+    const r = results[key];
+    return (
+      <div
+        style={{
+          minWidth: 0,
+          borderTop: `3px solid ${SLOT_COLOR[key]}`,
+          paddingTop: 8,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 13,
+            color: "#555",
+            marginBottom: 4,
+          }}
+        >
+          <SlotBadge slotKey={key} />
+          Place {key.toUpperCase()}
+        </div>
+        {!slot.point ? (
+          <div style={{ color: "#888" }}>Not set yet</div>
+        ) : slot.loading ? (
+          <div style={{ color: "#666" }}>Calculating…</div>
+        ) : !slot.result ? (
+          <div style={{ color: "#a33" }}>Could not score this point.</div>
+        ) : !r ? (
+          <div style={{ color: "#a33" }}>Outside the walking network.</div>
+        ) : (
+          <>
+            <div
+              style={{
+                fontSize: 28,
+                fontWeight: "bold",
+                color: "#2c5f6f",
+                lineHeight: 1.1,
+              }}
+            >
+              {r.total_score}
+              <span style={{ fontSize: 13, fontWeight: 400, color: "#999" }}>
+                {" "}
+                / 100
+              </span>
+            </div>
+            <div style={{ fontWeight: 600, lineHeight: 1.3, marginTop: 3 }}>
+              {scoreBand(r.total_score).label}
+            </div>
+          </>
+        )}
+      </div>
+    );
+  };
+
+  // Bold marks the closer of the two, so it is only drawn when both places
+  // have an answer for that category to be closer than.
+  const cell = (row?: Breakdown, other?: Breakdown) => {
+    if (!row) return <div style={{ color: "#bbb" }}>—</div>;
+    const closer =
+      !!other &&
+      row.nearest_m !== null &&
+      (other.nearest_m === null || row.nearest_m < other.nearest_m);
+    return (
+      <div style={{ minWidth: 0 }} title={row.nearest_name ?? undefined}>
+        <div
+          style={{
+            fontWeight: closer ? 700 : 400,
+            color: row.nearest_m === null ? "#999" : "#1a1a1a",
+          }}
+        >
+          {row.nearest_m === null ? "None" : `${row.nearest_m} m`}
+        </div>
+        <div
+          style={{
+            color: "#888",
+            fontSize: 12,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {row.nearest_m === null
+            ? "within 15 min"
+            : (row.nearest_name ?? "Unnamed")}
+        </div>
+      </div>
+    );
+  };
+
+  const gap =
+    results.a && results.b
+      ? Math.round((results.a.total_score - results.b.total_score) * 10) / 10
+      : null;
+
+  return (
+    <div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 12,
+        }}
+      >
+        {summary("a", a)}
+        {summary("b", b)}
+      </div>
+
+      {gap !== null && (
+        <p style={{ color: "#666", marginTop: 10 }}>
+          {gap === 0
+            ? "Both places score the same."
+            : `Place ${gap > 0 ? "A" : "B"} scores ${Math.abs(gap)} higher.`}
+        </p>
+      )}
+
+      {categories && (
+        <>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) 96px 96px",
+              gap: 10,
+              alignItems: "center",
+              marginTop: 22,
+              marginBottom: 4,
+            }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: "0.09em",
+                textTransform: "uppercase",
+                color: "#888",
+              }}
+            >
+              Nearest of each
+            </div>
+            <SlotBadge slotKey="a" />
+            <SlotBadge slotKey="b" />
+          </div>
+
+          {categories.map((category) => {
+            const rowA = results.a?.breakdown.find((r) => r.category === category);
+            const rowB = results.b?.breakdown.find((r) => r.category === category);
+            return (
+              <div
+                key={category}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) 96px 96px",
+                  gap: 10,
+                  alignItems: "baseline",
+                  padding: "9px 0",
+                  borderTop: "1px solid #eee",
+                }}
+              >
+                <div style={{ fontWeight: 500 }}>
+                  {CATEGORY_LABEL[category] ?? category}
+                </div>
+                {cell(rowA, rowB)}
+                {cell(rowB, rowA)}
+              </div>
+            );
+          })}
+
+          <p style={{ color: "#888", fontSize: 12.5, marginTop: 14 }}>
+            Walking distance along the street network. Bold marks whichever of
+            the two is closer.
+          </p>
+        </>
+      )}
     </div>
   );
 }

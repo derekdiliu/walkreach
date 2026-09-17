@@ -24,6 +24,10 @@ the numbers reflect the walk you would actually take.
 - **A per-category breakdown** — which supermarket, clinic, school, park and
   bus stop is nearest, how far each is in walking metres, and how many points
   that earned out of the category's maximum.
+- **A side-by-side comparison** of two places — both walks on one map, both
+  scores, and which of the two is closer for each category. The two points are
+  kept in the URL (`?a=lng,lat&b=lng,lat`), so a comparison can be shared as a
+  link.
 
 ## How it works
 
@@ -211,7 +215,6 @@ on, not oversights:
 
 ## Roadmap
 
-- A compare-two-locations mode
 - Highlight the walking path to a chosen amenity
 - Grid pre-computation and caching to hold response times under ~2 s
 - Deployment with PostGIS and pgRouting co-located
