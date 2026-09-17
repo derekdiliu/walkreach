@@ -1,0 +1,62 @@
+# Production stack for a single small VM. Run from this directory with a .env
+# beside it (see .env.example).
+name: walkreach
+
+services:
+  db:
+    # Pinned to the versions the data was built and tested on.
+    image: pgrouting/pgrouting:17-3.5-3.7.3
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: walkreach
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: walkreach
+    # Sized for 1 GiB of RAM shared with the app and Caddy. The whole database
+    # is under 100 MB, so a small cache still holds all of it.
+    command: >
+      postgres
+      -c shared_buffers=128MB
+      -c effective_cache_size=256MB
+      -c work_mem=16MB
+      -c maintenance_work_mem=64MB
+      -c max_connections=20
+    shm_size: 256mb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U walkreach -d walkreach"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    image: ghcr.io/derekdiliu/walkreach:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://walkreach:${POSTGRES_PASSWORD}@db:5432/walkreach
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # The only service with published ports. Caddy gets and renews the HTTPS
+  # certificate for DOMAIN on its own.
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

@@ -113,7 +113,7 @@ differently along its length.
 
 ## Tech stack
 
-- **PostgreSQL 16** + **PostGIS 3.5** + **pgRouting 3.7.3** — network storage,
+- **PostgreSQL 17** + **PostGIS 3.5** + **pgRouting 3.7.3** — network storage,
   routing and scoring, all in SQL
 - **Next.js 16** (App Router, TypeScript) with a single route handler and the
   `pg` driver
@@ -178,6 +178,45 @@ The MapLibre worker is copied into `public/maplibre/` by a `predev` /
 reliably via a named dynamic import inside `useEffect` with the worker served
 from `public/`.
 
+## Deploying
+
+`deploy/` runs the whole thing on one small Linux VM: Postgres with pgRouting,
+the app, and Caddy in front for HTTPS. Only Caddy publishes ports (80 and 443).
+It is sized for 1 GiB of RAM, which is too little to run `next build`, so
+`.github/workflows/image.yml` builds the app image on every push to `main` and
+publishes it to `ghcr.io/derekdiliu/walkreach`; the server only pulls it. Make
+that package public once, under the repository's Packages settings, or the
+server needs a `docker login ghcr.io` first.
+
+On a fresh Ubuntu 24.04 VM with the `deploy/` directory copied to it:
+
+```bash
+sudo ./setup-server.sh            # 2 GiB swap, Docker; log out and back in
+cp .env.example .env              # fill in DOMAIN and POSTGRES_PASSWORD
+docker compose up -d db
+```
+
+The database is moved as a dump rather than rebuilt on the server, which would
+need the OSM tooling and the 380 MB extract there too:
+
+```bash
+# on your machine
+docker exec walkreach-db pg_dump -U walkreach -d walkreach -Fc > walkreach.dump
+scp walkreach.dump <user>@<host>:~/deploy/
+
+# on the server
+docker compose exec -T db pg_restore -U walkreach -d walkreach --no-owner < walkreach.dump
+docker compose up -d
+```
+
+Caddy fetches the certificate for `DOMAIN` on first start, so port 80 and 443
+must already be open and the name must resolve to the VM. To ship a new
+version after the image workflow finishes:
+
+```bash
+docker compose pull app && docker compose up -d app
+```
+
 ## Project structure
 
 ```
@@ -194,7 +233,14 @@ sql/
   04-livability-score.sql      superseded scorer, kept for the report
 initdb/
   01-extensions.sql            run once on first container start
-docker-compose.yml             PostGIS + pgRouting on :5433
+docker-compose.yml             PostGIS + pgRouting on :5433, for development
+Dockerfile                     production image (Next.js standalone output)
+deploy/
+  docker-compose.yml           db + app + Caddy for a single VM
+  Caddyfile                    HTTPS and reverse proxy to the app
+  .env.example                 DOMAIN and POSTGRES_PASSWORD
+  setup-server.sh              swap and Docker on a fresh Ubuntu VM
+.github/workflows/image.yml    builds and publishes the image on push to main
 ```
 
 ## Limitations

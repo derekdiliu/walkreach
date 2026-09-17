@@ -1,0 +1,11 @@
+.git
+.github
+.next
+node_modules
+public/maplibre
+.env*
+deploy
+sql
+initdb
+docker-compose.yml
+*.md
