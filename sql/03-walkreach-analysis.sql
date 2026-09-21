@@ -6,7 +6,20 @@
 CREATE OR REPLACE FUNCTION walkreach_analysis(input_lng float, input_lat float)
 RETURNS jsonb AS $$
   WITH start AS (
+    -- The nearest vertex is found however far away it is, so a point out in
+    -- the farmland past the clip would be scored from wherever the network
+    -- happens to end. More than 200 m from any walkable way counts as off the
+    -- network: no start, nothing reached, a score of 0. Measured to the way
+    -- rather than the vertex, because a long rural edge can leave a point on
+    -- the road itself over a kilometre from either end.
     SELECT id FROM ways_vertices_pgr
+    WHERE (
+      SELECT ST_Distance(geom::geography,
+        ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)::geography)
+      FROM ways
+      ORDER BY geom <-> ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)
+      LIMIT 1
+    ) <= 200
     ORDER BY geom <-> ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)
     LIMIT 1
   ),
