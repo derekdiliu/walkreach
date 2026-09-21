@@ -421,6 +421,8 @@ export default function Home() {
               padding: 24,
               // let clicks fall through to the map: the card says to click it
               pointerEvents: "none",
+              // above MapLibre's controls, which sit at z-index 2
+              zIndex: 3,
             }}
           >
             <div
@@ -430,8 +432,15 @@ export default function Home() {
                 background: "#ffffff",
                 color: "#1a1a1a",
                 borderRadius: 12,
-                padding: "32px 34px",
+                // no bottom padding: the pinned buttons carry it, so nothing
+                // shows through below them as the card scrolls
+                padding: "32px 34px 0",
                 maxWidth: 460,
+                // A phone gives the map about half the screen, less than the
+                // card needs: scroll inside it rather than spill over the top
+                // bar and the panel.
+                maxHeight: "100%",
+                overflowY: "auto",
                 boxShadow: "0 18px 48px rgba(0,0,0,0.28)",
                 lineHeight: 1.55,
               }}
@@ -448,7 +457,7 @@ export default function Home() {
 
               <ol
                 style={{
-                  margin: "0 0 24px 0",
+                  margin: "0 0 12px 0",
                   paddingLeft: 20,
                   color: "#444",
                   fontSize: 14,
@@ -467,7 +476,19 @@ export default function Home() {
                 </li>
               </ol>
 
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <div
+                className="welcome-actions"
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "center",
+                  // pinned, so the way in is on screen before any scrolling
+                  position: "sticky",
+                  bottom: 0,
+                  background: "#ffffff",
+                  padding: "12px 0 32px",
+                }}
+              >
                 <button
                   onClick={tryCityCentre}
                   style={{

@@ -166,7 +166,11 @@ a {
   }
 
   .welcome-card {
-    padding: 22px 20px !important;
+    padding: 22px 20px 0 !important;
+  }
+
+  .welcome-actions {
+    padding-bottom: 22px !important;
   }
 }
 
