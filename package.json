@@ -8,7 +8,11 @@
     "dev": "next dev",
     "prebuild": "npm run copy:maplibre-worker",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "vitest run tests/unit",
+    "test:db": "vitest run tests/db",
+    "test:e2e": "playwright test",
+    "perf": "node scripts/perf.mts"
   },
   "dependencies": {
     "maplibre-gl": "^6.5.0",
@@ -18,10 +22,12 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^22.20.4",
     "@types/pg": "^8.21.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.1"
   }
 }
