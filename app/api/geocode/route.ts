@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Hamilton, matching the BBOX that sql/00-import.sh clips the network to -
 // there is no point resolving an address the router cannot reach.
-const VIEWBOX = "175.20,-37.85,175.32,-37.73";
+const VIEWBOX = "175.16,-37.86,175.37,-37.68";
 
 // Nominatim's usage policy asks for a User-Agent that identifies the
 // application and a way to reach whoever runs it. Browsers cannot set one, so

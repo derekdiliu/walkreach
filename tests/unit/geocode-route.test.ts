@@ -35,7 +35,7 @@ describe("GET /api/geocode", () => {
     const params = new URL(url).searchParams;
     expect(params.get("q")).toBe("Victoria Street");
     expect(params.get("countrycodes")).toBe("nz");
-    expect(params.get("viewbox")).toBe("175.20,-37.85,175.32,-37.73");
+    expect(params.get("viewbox")).toBe("175.16,-37.86,175.37,-37.68");
     expect(params.get("bounded")).toBe("1");
     // Nominatim's usage policy: identify the application.
     expect(init.headers["User-Agent"]).toMatch(/^WalkReach\//);

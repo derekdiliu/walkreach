@@ -16,7 +16,13 @@ set -euo pipefail
 # ---- config ----
 DATA_DIR="$(cd "$(dirname "$0")/../../data" && pwd)"
 NZ_PBF="$DATA_DIR/new-zealand-260725.osm.pbf"   # whatever Geofabrik extract you downloaded
-BBOX="175.20,-37.85,175.32,-37.73"              # Hamilton
+# Hamilton City's boundary (OSM relation "Hamilton City", admin_level 6)
+# spans 175.184-175.345, -37.846 to -37.699. The box is that plus about
+# 1.5 km each way: a point on the boundary walks up to 1250 m, and the
+# supermarket or clinic it reaches may be just outside the city. An earlier
+# 175.20,-37.85,175.32,-37.73 left Rototuna North, Huntington, Ruakura and
+# Silverdale - 19% of the city - off the network.
+BBOX="175.16,-37.86,175.37,-37.68"
 PG_HOST="localhost"; PG_PORT="5433"
 PG_DB="walkreach"; PG_USER="walkreach"; PG_PASS="walkreach"
 PGURI="postgresql://$PG_USER:$PG_PASS@$PG_HOST:$PG_PORT/$PG_DB"
@@ -85,9 +91,9 @@ run_sql_file "$SQL_DIR/04-livability-score.sql"
 
 echo
 echo "==> Done. Sanity check - compare against the known-good baseline:"
-echo "    bus_stop 1060 | park 201 | school 58 | clinic 52 | supermarket 25"
+echo "    bus_stop 1238 | park 244 | school 76 | clinic 54 | supermarket 30"
 run_sql -c "SELECT category, count(*) FROM amenities GROUP BY category ORDER BY count(*) DESC;"
-echo "    ways ~37500, ways_vertices_pgr ~30000, amenity_nodes ~33000"
+echo "    ways ~45700, ways_vertices_pgr ~36500, amenity_nodes ~37000"
 run_sql -c "SELECT
   (SELECT count(*) FROM ways) AS ways,
   (SELECT count(*) FROM ways_vertices_pgr) AS vertices,

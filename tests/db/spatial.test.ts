@@ -121,3 +121,19 @@ describe("points off the walking network", () => {
     expect(a.total_score).toBeGreaterThan(0);
   });
 });
+
+describe("coverage of the whole city", () => {
+  // Suburbs inside Hamilton City's boundary that an earlier, tighter import
+  // box left off the network. Each must get bands, not "outside".
+  it.each([
+    ["Huntington", { lng: 175.253, lat: -37.72 }],
+    ["Flagstaff north", { lng: 175.24, lat: -37.718 }],
+    ["Silverdale", { lng: 175.33, lat: -37.79 }],
+    ["Riverlea", { lng: 175.328, lat: -37.802 }],
+    ["Ruakura", { lng: 175.334, lat: -37.78 }],
+  ])("reaches %s", async (_, point) => {
+    const a = await analyse(point);
+    expect(a.isochrone.features.map((f) => f.properties.minutes)).toEqual([15, 10, 5]);
+    expect(a.total_score).toBeGreaterThan(0);
+  });
+});

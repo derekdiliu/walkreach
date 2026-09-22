@@ -101,8 +101,9 @@ GET /api/livability?lng=175.2793&lat=-37.7871
 }
 ```
 
-A coordinate that is off the network (in the middle of the river, say) comes
-back with `total_score: 0` and an empty feature list rather than an error.
+A coordinate that is off the network (more than 200 m from any walkable way,
+out in the farmland past the city, say) comes back with `total_score: 0` and
+an empty feature list rather than an error.
 
 Addresses are resolved by [Nominatim](https://nominatim.openstreetmap.org),
 proxied through `/api/geocode` so the request carries a User-Agent identifying
@@ -152,10 +153,10 @@ functions — then prints counts to check against a known-good baseline.
 
 | Step | Builds | Size |
 |---|---|---|
-| `osm2pgrouting` | `ways` — pedestrian edges, `length_m` in metres | ~37,500 |
-| | `ways_vertices_pgr` — nodes, 98.8% in one connected component | ~30,000 |
-| `01-amenities.sql` | `amenities` — five categories, with polygon footprints | ~1,400 |
-| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs | ~33,000 |
+| `osm2pgrouting` | `ways` — pedestrian edges, `length_m` in metres | ~45,700 |
+| | `ways_vertices_pgr` — nodes, 98.1% in one connected component | ~36,500 |
+| `01-amenities.sql` | `amenities` — five categories, with polygon footprints | ~1,600 |
+| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs | ~37,000 |
 | `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` — what the API calls | |
 | `04-livability-score.sql` | `livability_score(lng, lat)` — superseded, kept for comparison | |
 
