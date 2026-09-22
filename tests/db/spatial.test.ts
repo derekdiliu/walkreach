@@ -137,3 +137,21 @@ describe("coverage of the whole city", () => {
     expect(a.total_score).toBeGreaterThan(0);
   });
 });
+
+describe("fragments cut off from the network", () => {
+  // Each of these is nearest to a handful of vertices joined to nothing
+  // else: one in the CBD is a single vertex on its own. Starting there
+  // reached an amenity or two but nowhere to draw a band, so the panel said
+  // "outside the network" under a score. The walk has to start on the
+  // network everyone else is on.
+  it.each([
+    ["the CBD, beside Victoria Street", { lng: 175.282, lat: -37.787 }],
+    ["Rototuna North", { lng: 175.267, lat: -37.715 }],
+    ["Hamilton Lake south", { lng: 175.276, lat: -37.808 }],
+    ["Hillcrest south", { lng: 175.309, lat: -37.823 }],
+  ])("starts from the main network at %s", async (_, point) => {
+    const a = await analyse(point);
+    expect(a.isochrone.features.length).toBeGreaterThan(0);
+    expect(a.total_score).toBeGreaterThan(0);
+  });
+});

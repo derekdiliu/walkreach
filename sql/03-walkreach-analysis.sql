@@ -3,6 +3,33 @@
 -- Replaces livability_score() + get_isochrone(), which each ran their own.
 -- Needs the amenity_nodes table from 01-amenity-nodes.sql.
 
+-- The walking network is its largest connected component. The rest - 1.8%
+-- of the city by area - is fragments of a few vertices joined to nothing
+-- else: a path drawn in a field, a vertex left over at a junction. A walk
+-- started on one reaches an amenity or two and nowhere else, so it scored
+-- without a single band to show for it. Flag the main component on both
+-- tables so the start can be restricted to it. Recomputed on every run, since
+-- osm2pgrouting --clean rebuilds both tables.
+ALTER TABLE ways_vertices_pgr ADD COLUMN IF NOT EXISTS main_network boolean;
+ALTER TABLE ways ADD COLUMN IF NOT EXISTS main_network boolean;
+
+WITH cc AS (
+  SELECT node, component FROM pgr_connectedComponents(
+    'SELECT id, source, target, length_m AS cost, length_m AS reverse_cost FROM ways')
+),
+main AS (
+  SELECT component FROM cc GROUP BY component ORDER BY count(*) DESC LIMIT 1
+)
+UPDATE ways_vertices_pgr v
+SET main_network = (cc.component = (SELECT component FROM main))
+FROM cc WHERE cc.node = v.id;
+
+UPDATE ways w SET main_network = v.main_network
+FROM ways_vertices_pgr v WHERE v.id = w.source;
+
+ANALYZE ways_vertices_pgr;
+ANALYZE ways;
+
 CREATE OR REPLACE FUNCTION walkreach_analysis(input_lng float, input_lat float)
 RETURNS jsonb AS $$
   WITH start AS (
@@ -11,12 +38,15 @@ RETURNS jsonb AS $$
     -- happens to end. More than 200 m from any walkable way counts as off the
     -- network: no start, nothing reached, a score of 0. Measured to the way
     -- rather than the vertex, because a long rural edge can leave a point on
-    -- the road itself over a kilometre from either end.
+    -- the road itself over a kilometre from either end. Both the way and the
+    -- vertex must be on the main network: a fragment next to the point does
+    -- not make it reachable.
     SELECT id FROM ways_vertices_pgr
-    WHERE (
+    WHERE main_network AND (
       SELECT ST_Distance(geom::geography,
         ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)::geography)
       FROM ways
+      WHERE main_network
       ORDER BY geom <-> ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)
       LIMIT 1
     ) <= 200
