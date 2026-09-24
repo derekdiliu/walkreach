@@ -14,12 +14,15 @@ Defects found and fixed, each linked to its regression test, are in
 | Unit | API routes with the database and Nominatim mocked: validation, response shape, error statuses; pure helpers | 79 | 79 passed | [`unit.txt`](qa/2026-09-25/unit.txt) |
 | Database | The SQL against the real PostGIS database: river barrier, band validity, coverage, scoring rules, pinned scores, reach lists, routes, names, suggestions | 96 | 96 passed | [`db.txt`](qa/2026-09-25/db.txt) |
 | End-to-end, local | The production build in Chromium at desktop and Pixel 7 size: example, map click, shared and compare links, reach list and route, suggestions, start over, layout, slow map | 24 | 24 passed | [`e2e-local.txt`](qa/2026-09-25/e2e-local.txt) |
+| End-to-end, live | The same 24 tests against https://walkreach.australiaeast.cloudapp.azure.com, after deploying this commit's image | 24 | 24 passed | [`e2e-live.txt`](qa/2026-09-25/e2e-live.txt) |
 | Dependency audit | `npm audit` over the whole tree | — | 0 vulnerabilities | [`npm-audit.txt`](qa/2026-09-25/npm-audit.txt) |
 | Performance | `npm run perf`: query timings, and against the superseded implementation | — | median 490 ms | [`perf.txt`](qa/2026-09-25/perf.txt) |
 
 The end-to-end suite ran against the standalone server the production image
 runs (`node .next/standalone/server.js`, laid out as the `Dockerfile` does),
 not the development server, with 12 tests each at the two screen sizes.
+The live run went over the internet to the Azure VM, where the network and
+MapLibre load more slowly; that is the setting B14 only showed up in.
 
 ### Environment
 
