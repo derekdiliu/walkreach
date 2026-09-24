@@ -21,6 +21,7 @@ const ANALYSIS = {
   breakdown: [
     { category: "bus_stop", weighted_score: 9.4, max_score: 10, nearest_m: 78, nearest_name: null },
   ],
+  amenities: [{ id: 1041, category: "bus_stop", name: null, walk_m: 78 }],
   isochrone: { type: "FeatureCollection", features: [] },
 };
 
@@ -66,7 +67,7 @@ describe("GET /api/livability", () => {
     query.mockResolvedValue({ rows: [{ analysis: { ...ANALYSIS, debug: "x" } }] });
     const body = await (await get("?lng=175.2793&lat=-37.7871")).json();
     expect(Object.keys(body).sort()).toEqual(
-      ["breakdown", "isochrone", "location", "total_score"],
+      ["amenities", "breakdown", "isochrone", "location", "total_score"],
     );
   });
 

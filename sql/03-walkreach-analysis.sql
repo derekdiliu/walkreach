@@ -30,28 +30,37 @@ FROM ways_vertices_pgr v WHERE v.id = w.source;
 ANALYZE ways_vertices_pgr;
 ANALYZE ways;
 
+-- The network vertex a walk from (lng, lat) starts at, or NULL when the point
+-- is off the network. Shared by walkreach_analysis and walkreach_route, so the
+-- route to an amenity starts where the distance to it was measured from.
+CREATE OR REPLACE FUNCTION walkreach_start(input_lng float, input_lat float)
+RETURNS bigint AS $$
+  -- The nearest vertex is found however far away it is, so a point out in
+  -- the farmland past the clip would be scored from wherever the network
+  -- happens to end. More than 200 m from any walkable way counts as off the
+  -- network: no start, nothing reached, a score of 0. Measured to the way
+  -- rather than the vertex, because a long rural edge can leave a point on
+  -- the road itself over a kilometre from either end. Both the way and the
+  -- vertex must be on the main network: a fragment next to the point does
+  -- not make it reachable.
+  SELECT id FROM ways_vertices_pgr
+  WHERE main_network AND (
+    SELECT ST_Distance(geom::geography,
+      ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)::geography)
+    FROM ways
+    WHERE main_network
+    ORDER BY geom <-> ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)
+    LIMIT 1
+  ) <= 200
+  ORDER BY geom <-> ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)
+  LIMIT 1
+$$ LANGUAGE sql STABLE;
+
 CREATE OR REPLACE FUNCTION walkreach_analysis(input_lng float, input_lat float)
 RETURNS jsonb AS $$
   WITH start AS (
-    -- The nearest vertex is found however far away it is, so a point out in
-    -- the farmland past the clip would be scored from wherever the network
-    -- happens to end. More than 200 m from any walkable way counts as off the
-    -- network: no start, nothing reached, a score of 0. Measured to the way
-    -- rather than the vertex, because a long rural edge can leave a point on
-    -- the road itself over a kilometre from either end. Both the way and the
-    -- vertex must be on the main network: a fragment next to the point does
-    -- not make it reachable.
-    SELECT id FROM ways_vertices_pgr
-    WHERE main_network AND (
-      SELECT ST_Distance(geom::geography,
-        ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)::geography)
-      FROM ways
-      WHERE main_network
-      ORDER BY geom <-> ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)
-      LIMIT 1
-    ) <= 200
-    ORDER BY geom <-> ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)
-    LIMIT 1
+    SELECT id FROM (SELECT walkreach_start(input_lng, input_lat) AS id) s
+    WHERE id IS NOT NULL
   ),
   iso AS (
     SELECT dd.node, dd.agg_cost, v.geom
@@ -74,6 +83,17 @@ RETURNS jsonb AS $$
     JOIN iso ON iso.node = an.node_id
     JOIN amenities a ON a.id = an.amenity_id
     ORDER BY an.category, iso.agg_cost
+  ),
+  reached AS (
+    -- Every amenity within the walk, at the distance of whichever of its
+    -- nodes is reached first: the list behind the counts, and what a route
+    -- can be asked for.
+    SELECT DISTINCT ON (an.amenity_id)
+      an.amenity_id, an.category, a.name, iso.agg_cost
+    FROM amenity_nodes an
+    JOIN iso ON iso.node = an.node_id
+    JOIN amenities a ON a.id = an.amenity_id
+    ORDER BY an.amenity_id, iso.agg_cost
   ),
   scored AS (
     -- 最近设施距离转成 0-1 分：0米=1.0, 1250米=0.0，线性衰减。
@@ -161,6 +181,11 @@ RETURNS jsonb AS $$
         'max_score', max_score, 'nearest_m', nearest_m,
         'nearest_name', nearest_name
       ) ORDER BY category) FROM scored), '[]'::jsonb),
+    'amenities', COALESCE((
+      SELECT jsonb_agg(jsonb_build_object(
+        'id', amenity_id, 'category', category, 'name', name,
+        'walk_m', round(agg_cost::numeric)
+      ) ORDER BY agg_cost, amenity_id) FROM reached), '[]'::jsonb),
     'isochrone', jsonb_build_object(
       'type', 'FeatureCollection',
       'features', COALESCE((
@@ -177,3 +202,77 @@ RETURNS jsonb AS $$
     )
   );
 $$ LANGUAGE sql;
+
+-- The walking route from (lng, lat) to one amenity, as walkreach_analysis
+-- measured it: from the same start vertex, to whichever of the amenity's
+-- nodes is closest along the network. NULL when the amenity is not within
+-- the 1250 m walk.
+--
+-- A path of at most 1250 m cannot leave a 1250 m box around its start, so
+-- the edges are cut to a box of 0.015 degrees each way (1,670 m north-south
+-- and 1,320 m east-west at Hamilton's latitude) rather than handing Dijkstra
+-- the whole city.
+CREATE OR REPLACE FUNCTION walkreach_route(input_lng float, input_lat float,
+                                           target_amenity int)
+RETURNS jsonb AS $$
+  WITH start AS (
+    SELECT v.id, v.geom FROM ways_vertices_pgr v
+    WHERE v.id = walkreach_start(input_lng, input_lat)
+  ),
+  targets AS (
+    SELECT node_id FROM amenity_nodes WHERE amenity_id = target_amenity
+  ),
+  paths AS (
+    SELECT p.* FROM start, pgr_dijkstra(
+      format(
+        'SELECT id, source, target, length_m AS cost FROM ways
+         WHERE geom && ST_Expand(%L::geometry, 0.015)', start.geom),
+      start.id, ARRAY(SELECT node_id FROM targets), false
+    ) p
+  ),
+  best AS (
+    -- The target the walk reaches first. The start being one of the
+    -- amenity's own nodes is a walk of 0 m, which Dijkstra returns no path
+    -- for, so it is taken separately.
+    SELECT end_vid AS node, agg_cost AS walk_m FROM paths
+    WHERE edge = -1 AND agg_cost <= 1250
+    UNION ALL
+    SELECT start.id, 0 FROM start JOIN targets ON targets.node_id = start.id
+    ORDER BY walk_m, node
+    LIMIT 1
+  ),
+  line AS (
+    SELECT ST_LineMerge(ST_Collect(w.geom ORDER BY p.path_seq)) AS geom
+    FROM paths p
+    JOIN best ON p.end_vid = best.node
+    JOIN ways w ON w.id = p.edge
+  ),
+  arrival AS (
+    -- Where the walk arrives: the amenity's point, or for a park or a
+    -- campus the edge of its footprint nearest the node the walk ends at.
+    SELECT a.id, a.category, a.name, best.walk_m, v.geom AS node_geom,
+      COALESCE(ST_ClosestPoint(a.area, v.geom), a.geom) AS geom
+    FROM best
+    JOIN ways_vertices_pgr v ON v.id = best.node
+    JOIN amenities a ON a.id = target_amenity
+  )
+  SELECT jsonb_build_object(
+    'amenity', jsonb_build_object(
+      'id', arrival.id, 'category', arrival.category, 'name', arrival.name,
+      'walk_m', round(arrival.walk_m::numeric)
+    ),
+    'destination', ST_AsGeoJSON(arrival.geom, 7)::jsonb,
+    'route', COALESCE(ST_AsGeoJSON(line.geom, 7)::jsonb,
+      jsonb_build_object('type', 'LineString', 'coordinates', '[]'::jsonb)),
+    -- The two stretches the distance leaves out: from the point to the
+    -- vertex the walk starts at, and from the node it ends at to the
+    -- amenity. Drawn so the route visibly joins the pin to the amenity, and
+    -- drawn apart from it because neither is in walk_m.
+    'connectors', ST_AsGeoJSON(ST_Collect(
+      ST_MakeLine(ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326),
+                  start.geom),
+      ST_MakeLine(arrival.node_geom, arrival.geom)
+    ), 7)::jsonb
+  )
+  FROM arrival, start, line;
+$$ LANGUAGE sql STABLE;

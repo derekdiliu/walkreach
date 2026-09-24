@@ -10,12 +10,25 @@ type Breakdown = {
   nearest_m: number | null;
   nearest_name: string | null;
 };
+type Reached = {
+  id: number;
+  category: string;
+  name: string | null;
+  walk_m: number;
+};
 type Place = { lng: number; lat: number; label: string };
 type Result = {
   location: { lng: number; lat: number };
   total_score: number;
   breakdown: Breakdown[];
+  amenities: Reached[];
   isochrone: { type: string; features: any[] };
+};
+type Route = {
+  amenity: Reached;
+  destination: { type: "Point"; coordinates: [number, number] };
+  route: { type: string; coordinates: any[] };
+  connectors: { type: "MultiLineString"; coordinates: [number, number][][] };
 };
 type LngLat = { lng: number; lat: number };
 type SlotKey = "a" | "b";
@@ -37,6 +50,15 @@ const BANDS = [
 
 const SLOT_COLOR: Record<SlotKey, string> = { a: "#1f78b4", b: "#e8710a" };
 const COMPARE_OPACITY = 0.38;
+
+const ROUTE_COLOR = "#c2410c";
+
+// The same cut-offs the bands on the map are drawn at: 1,250 m is 15 minutes.
+const walkMinutes = (m: number) => Math.max(1, Math.round((m / 1250) * 15));
+const withinMinutes = (m: number, minutes: number) => m <= (minutes / 15) * 1250;
+
+const amenityName = (a: { name: string | null; category: string }) =>
+  a.name ?? `Unnamed ${(CATEGORY_LABEL[a.category] ?? a.category).toLowerCase()}`;
 
 const isOffNetwork = (result: Result) => result.isochrone.features.length === 0;
 
@@ -97,6 +119,11 @@ export default function Home() {
   const [searching, setSearching] = useState(false);
   const [choices, setChoices] = useState<Place[] | null>(null);
   const [searchNote, setSearchNote] = useState<string | null>(null);
+  const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
+  // As requestRef, for the route: a slow answer for an amenity no longer
+  // picked must not be drawn.
+  const routeRequestRef = useRef(0);
 
   const { result, loading } = slots.a;
   const offNetwork = !!result && isOffNetwork(result);
@@ -106,15 +133,79 @@ export default function Home() {
 
   // A click can still land before the style has finished parsing, so hold
   // the data until the source is there rather than dropping it.
-  const setIsochrone = (key: SlotKey, data: any) => {
+  const setSource = (id: string, data: any) => {
     const map = mapRef.current;
     if (!map) return;
-    const source = map.getSource(`isochrone-${key}`);
+    const source = map.getSource(id);
     if (source) source.setData(data);
-    else
-      map.once("styledata", () =>
-        map.getSource(`isochrone-${key}`).setData(data),
+    else map.once("styledata", () => map.getSource(id).setData(data));
+  };
+
+  const setIsochrone = (key: SlotKey, data: any) =>
+    setSource(`isochrone-${key}`, data);
+
+  const clearRoute = () => {
+    routeRequestRef.current++;
+    setSelected(null);
+    setSource("route", EMPTY_GEOJSON);
+  };
+
+  const showRoute = async (amenity: Reached) => {
+    const point = slots.a.point;
+    if (!point) return;
+    if (selected === amenity.id) return clearRoute();
+
+    const request = ++routeRequestRef.current;
+    setSelected(amenity.id);
+    setSource("route", EMPTY_GEOJSON);
+
+    // On a phone the list is below the map, so the walk would be drawn out
+    // of sight. Bring the map back up; side by side it never leaves the
+    // screen and this does nothing.
+    const pane = mapContainer.current?.parentElement;
+    if (pane && pane.getBoundingClientRect().top < 0)
+      pane.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    let data: Route | null;
+    try {
+      const res = await fetch(
+        `/api/route?lng=${point.lng}&lat=${point.lat}&amenity=${amenity.id}`,
       );
+      data = res.ok ? await res.json() : null;
+    } catch {
+      data = null;
+    }
+
+    if (request !== routeRequestRef.current) return;
+    if (!data) return setSelected(null);
+
+    setSource("route", {
+      type: "FeatureCollection",
+      features: [
+        { type: "Feature", properties: { kind: "walk" }, geometry: data.route },
+        { type: "Feature", properties: { kind: "connector" }, geometry: data.connectors },
+        { type: "Feature", properties: { kind: "destination" }, geometry: data.destination },
+      ],
+    });
+
+    // Frame the pin, the walk and the amenity together.
+    const coords: [number, number][] = [
+      [point.lng, point.lat],
+      data.destination.coordinates,
+      ...data.connectors.coordinates.flat(),
+      ...(data.route.type === "MultiLineString"
+        ? data.route.coordinates.flat()
+        : data.route.coordinates),
+    ];
+    const lngs = coords.map((c) => c[0]);
+    const lats = coords.map((c) => c[1]);
+    mapRef.current?.fitBounds(
+      [
+        [Math.min(...lngs), Math.min(...lats)],
+        [Math.max(...lngs), Math.max(...lats)],
+      ],
+      { padding: 48, maxZoom: 17 },
+    );
   };
 
   const putMarker = (key: SlotKey, lng: number, lat: number, coloured: boolean) => {
@@ -139,6 +230,8 @@ export default function Home() {
 
     updateSlot(key, { point: { lng, lat, label }, result: null, loading: true });
     setIsochrone(key, EMPTY_GEOJSON);
+    // The route is from A; a new A leaves it starting somewhere else.
+    if (key === "a") clearRoute();
 
     let data: Result | null;
     try {
@@ -201,6 +294,7 @@ export default function Home() {
             },
             "isochrone-a": { type: "geojson", data: EMPTY_GEOJSON },
             "isochrone-b": { type: "geojson", data: EMPTY_GEOJSON },
+            route: { type: "geojson", data: EMPTY_GEOJSON },
           },
           layers: [
             { id: "osm", type: "raster", source: "osm" },
@@ -267,6 +361,49 @@ export default function Home() {
               paint: {
                 "fill-color": SLOT_COLOR.b,
                 "fill-opacity": COMPARE_OPACITY,
+              },
+            },
+            // The walk to a picked amenity, cased in white so it stays
+            // readable over any of the band colours. The connectors are the
+            // stretches off the network the distance does not count, so they
+            // are dashed and thinner.
+            {
+              id: "route-casing",
+              type: "line",
+              source: "route",
+              filter: ["==", ["get", "kind"], "walk"],
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: { "line-color": "#ffffff", "line-width": 8 },
+            },
+            {
+              id: "route-line",
+              type: "line",
+              source: "route",
+              filter: ["==", ["get", "kind"], "walk"],
+              layout: { "line-join": "round", "line-cap": "round" },
+              paint: { "line-color": ROUTE_COLOR, "line-width": 4.5 },
+            },
+            {
+              id: "route-connector",
+              type: "line",
+              source: "route",
+              filter: ["==", ["get", "kind"], "connector"],
+              paint: {
+                "line-color": ROUTE_COLOR,
+                "line-width": 2.5,
+                "line-dasharray": [1.5, 1.5],
+              },
+            },
+            {
+              id: "route-destination",
+              type: "circle",
+              source: "route",
+              filter: ["==", ["get", "kind"], "destination"],
+              paint: {
+                "circle-radius": 7,
+                "circle-color": ROUTE_COLOR,
+                "circle-stroke-color": "#ffffff",
+                "circle-stroke-width": 2.5,
               },
             },
           ],
@@ -343,6 +480,7 @@ export default function Home() {
     if (on === compare) return;
     const a = slots.a.point;
     if (a) putMarker("a", a.lng, a.lat, on);
+    clearRoute();
     if (!on) {
       requestRef.current.b++;
       markersRef.current.b?.remove();
@@ -372,6 +510,8 @@ export default function Home() {
       markersRef.current[key] = null;
       setIsochrone(key, EMPTY_GEOJSON);
     }
+    clearRoute();
+    setOpenCategory(null);
     setSlots({ a: EMPTY_SLOT, b: EMPTY_SLOT });
     setCompare(false);
     setActive("a");
@@ -820,6 +960,8 @@ export default function Home() {
               </div>
             </div>
 
+            <ReachCounts amenities={result.amenities} />
+
             <div
               style={{
                 fontSize: 11,
@@ -833,75 +975,107 @@ export default function Home() {
               Nearest of each
             </div>
 
-            {result.breakdown.map((b) => (
-              <div
-                key={b.category}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "baseline",
-                  gap: 12,
-                  padding: "9px 0",
-                  borderTop: "1px solid #eee",
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 500 }}>
-                    {CATEGORY_LABEL[b.category] ?? b.category}
-                  </div>
-                  {b.nearest_m === null ? (
-                    <div style={{ color: "#666", fontSize: 13 }}>
-                      None within a 15 minute walk
+            {result.breakdown.map((b) => {
+              const reached = result.amenities.filter(
+                (a) => a.category === b.category,
+              );
+              const open = openCategory === b.category;
+              return (
+                <div key={b.category} style={{ borderTop: "1px solid #eee" }}>
+                  <button
+                    onClick={() => setOpenCategory(open ? null : b.category)}
+                    disabled={reached.length === 0}
+                    aria-expanded={reached.length > 0 ? open : undefined}
+                    style={{
+                      display: "flex",
+                      width: "100%",
+                      justifyContent: "space-between",
+                      alignItems: "baseline",
+                      gap: 12,
+                      padding: "9px 0",
+                      background: "none",
+                      border: "none",
+                      textAlign: "left",
+                      font: "inherit",
+                      color: "inherit",
+                      cursor: reached.length > 0 ? "pointer" : "default",
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 500 }}>
+                        {CATEGORY_LABEL[b.category] ?? b.category}
+                        {reached.length > 0 && (
+                          <span
+                            style={{ color: "#2c5f6f", fontWeight: 400, fontSize: 13 }}
+                          >
+                            {" "}
+                            {open ? "▾" : "▸"} {reached.length} within 15 min
+                          </span>
+                        )}
+                      </div>
+                      {b.nearest_m === null ? (
+                        <div style={{ color: "#666", fontSize: 13 }}>
+                          None within a 15 minute walk
+                        </div>
+                      ) : (
+                        // The distance is the measurement and the name is
+                        // context, so a long name truncates rather than pushing
+                        // the metres onto a line of their own.
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 5,
+                            color: "#666",
+                            fontSize: 13,
+                          }}
+                        >
+                          <span
+                            style={{
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {amenityName({ name: b.nearest_name, category: b.category })}
+                          </span>
+                          <span style={{ flexShrink: 0 }}>
+                            · {b.nearest_m} m walk
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    // The distance is the measurement and the name is context,
-                    // so a long name truncates rather than pushing the metres
-                    // onto a line of their own.
                     <div
                       style={{
-                        display: "flex",
-                        gap: 5,
-                        color: "#666",
-                        fontSize: 13,
+                        flexShrink: 0,
+                        fontWeight: 500,
+                        color: b.nearest_m === null ? "#aaa" : "#1a1a1a",
                       }}
                     >
-                      <span
-                        style={{
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {b.nearest_name ??
-                          `Unnamed ${(
-                            CATEGORY_LABEL[b.category] ?? b.category
-                          ).toLowerCase()}`}
-                      </span>
-                      <span style={{ flexShrink: 0 }}>
-                        · {b.nearest_m} m walk
+                      {b.weighted_score}
+                      <span style={{ color: "#aaa", fontWeight: 400 }}>
+                        {" "}
+                        / {b.max_score}
                       </span>
                     </div>
+                  </button>
+
+                  {open && (
+                    <ReachList
+                      category={b.category}
+                      amenities={reached}
+                      selected={selected}
+                      onPick={showRoute}
+                    />
                   )}
                 </div>
-                <div
-                  style={{
-                    flexShrink: 0,
-                    fontWeight: 500,
-                    color: b.nearest_m === null ? "#aaa" : "#1a1a1a",
-                  }}
-                >
-                  {b.weighted_score}
-                  <span style={{ color: "#aaa", fontWeight: 400 }}>
-                    {" "}
-                    / {b.max_score}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             <p style={{ color: "#888", fontSize: 12.5, marginTop: 14 }}>
               Each category scores by how close its nearest one is on foot, up
-              to its own maximum. Distances follow the street network.
+              to its own maximum. Distances follow the street network. Open a
+              category to see everything of that kind within reach, and pick
+              one to see the walk there.
             </p>
           </div>
         )}
@@ -967,6 +1141,135 @@ export default function Home() {
         </div>
       </aside>
     </div>
+  );
+}
+
+// How many of each kind are within 5, 10 and 15 minutes. Cumulative, like the
+// bands: whatever is within 5 minutes is within 10 as well.
+function ReachCounts({ amenities }: { amenities: Reached[] }) {
+  const minutes = BANDS.map((b) => b.minutes);
+  const cell = { textAlign: "right" as const, fontVariantNumeric: "tabular-nums" };
+  return (
+    <table
+      aria-label="Amenities within 5, 10 and 15 minutes"
+      style={{
+        width: "100%",
+        borderCollapse: "collapse",
+        marginTop: 22,
+        fontSize: 13.5,
+      }}
+    >
+      <thead>
+        <tr
+          style={{
+            fontSize: 11,
+            letterSpacing: "0.09em",
+            textTransform: "uppercase",
+            color: "#888",
+          }}
+        >
+          <th style={{ textAlign: "left", fontWeight: 400, paddingBottom: 4 }}>
+            Within reach
+          </th>
+          {minutes.map((m) => (
+            <th key={m} style={{ ...cell, fontWeight: 400, paddingBottom: 4 }}>
+              {m} min
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Object.keys(CATEGORY_LABEL).map((category) => {
+          const ofKind = amenities.filter((a) => a.category === category);
+          return (
+            <tr key={category} style={{ borderTop: "1px solid #eee" }}>
+              <td style={{ padding: "5px 0" }}>{CATEGORY_LABEL[category]}</td>
+              {minutes.map((m) => {
+                const n = ofKind.filter((a) => withinMinutes(a.walk_m, m)).length;
+                return (
+                  <td key={m} style={{ ...cell, color: n === 0 ? "#bbb" : "#1a1a1a" }}>
+                    {n}
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function ReachList({
+  category,
+  amenities,
+  selected,
+  onPick,
+}: {
+  category: string;
+  amenities: Reached[];
+  selected: number | null;
+  onPick: (a: Reached) => void;
+}) {
+  return (
+    <ul
+      aria-label={`${CATEGORY_LABEL[category] ?? category} within 15 minutes`}
+      style={{
+        listStyle: "none",
+        margin: "0 0 8px",
+        padding: 0,
+        // A city-centre walk reaches dozens of bus stops.
+        maxHeight: 264,
+        overflowY: "auto",
+      }}
+    >
+      {amenities.map((a) => {
+        const on = selected === a.id;
+        return (
+          <li key={a.id}>
+            <button
+              onClick={() => onPick(a)}
+              aria-pressed={on}
+              style={{
+                display: "flex",
+                width: "100%",
+                gap: 8,
+                padding: "6px 8px",
+                border: "none",
+                borderLeft: `3px solid ${on ? ROUTE_COLOR : "transparent"}`,
+                background: on ? "#fdf1ea" : "none",
+                textAlign: "left",
+                font: "inherit",
+                fontSize: 13,
+                color: "#1a1a1a",
+                cursor: "pointer",
+              }}
+            >
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {amenityName(a)}
+              </span>
+              <span style={{ flexShrink: 0, color: "#666" }}>
+                {a.walk_m} m · {walkMinutes(a.walk_m)} min
+              </span>
+            </button>
+          </li>
+        );
+      })}
+      {selected !== null && amenities.some((a) => a.id === selected) && (
+        <li style={{ color: "#888", fontSize: 12, padding: "6px 8px 0" }}>
+          The walk is drawn on the map. Its dashed ends, onto the network and
+          off it to the amenity, are not counted in the distance.
+        </li>
+      )}
+    </ul>
   );
 }
 

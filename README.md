@@ -45,7 +45,9 @@ A single call to `walkreach_analysis(lng, lat)` does everything:
    1250 m or unreachable = zero), then weight it. A park or school is matched
    against its whole footprint, so the distance is to the nearest part of it
    you could walk up to, not to a centroid sitting somewhere inside it.
-4. Build the bands from the same traversal by taking the reached nodes under
+4. List every amenity within the walk, at the distance of whichever of its
+   nodes is reached first. The panel counts these by band and lists them.
+5. Build the bands from the same traversal by taking the reached nodes under
    each distance budget and wrapping them in `ST_ConcaveHull(..., 0.8)`.
 
 Scoring and isochrones share the traversal because they used to be two
@@ -94,6 +96,10 @@ GET /api/livability?lng=175.2793&lat=-37.7871
     { "category": "bus_stop",    "weighted_score": 9.5,  "max_score": 10.0,
       "nearest_m": 60,  "nearest_name": "Transport Centre (Bryce St)" }
   ],
+  "amenities": [
+    { "id": 1041, "category": "bus_stop", "name": null, "walk_m": 60 },
+    /* every amenity within 1250 m, nearest first */
+  ],
   "isochrone": {
     "type": "FeatureCollection",
     "features": [{ "properties": { "minutes": 5 }, "geometry": { /* Polygon */ } }]
@@ -104,6 +110,27 @@ GET /api/livability?lng=175.2793&lat=-37.7871
 A coordinate that is off the network (more than 200 m from any walkable way,
 out in the farmland past the city, say) comes back with `total_score: 0` and
 an empty feature list rather than an error.
+
+```
+GET /api/route?lng=175.2793&lat=-37.7871&amenity=1452
+```
+
+The walk to one listed amenity, from `walkreach_route(lng, lat, amenity)`:
+a shortest path from the same start vertex to the same node the distance was
+measured to, so the line drawn is exactly `walk_m` long.
+
+```jsonc
+{
+  "amenity": { "id": 1452, "category": "supermarket", "name": "NewSave", "walk_m": 403 },
+  "destination": { "type": "Point", "coordinates": [175.2758777, -37.786535] },
+  "route": { "type": "LineString", "coordinates": [/* ... */] },
+  "connectors": { "type": "MultiLineString", "coordinates": [/* ... */] }
+}
+```
+
+`connectors` are the two stretches the distance leaves out, from the point to
+the network and from the network to the amenity; the map draws them dashed.
+An amenity that is not within the walk answers 404.
 
 Addresses are resolved by [Nominatim](https://nominatim.openstreetmap.org),
 proxied through `/api/geocode` so the request carries a User-Agent identifying
@@ -157,7 +184,7 @@ functions — then prints counts to check against a known-good baseline.
 | | `ways_vertices_pgr` — nodes, 98.1% in one connected component | ~36,500 |
 | `01-amenities.sql` | `amenities` — five categories, with polygon footprints | ~1,600 |
 | `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs | ~37,000 |
-| `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` — what the API calls | |
+| `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` and `walkreach_route(lng, lat, amenity)` — what the API calls | |
 | `04-livability-score.sql` | `livability_score(lng, lat)` — superseded, kept for comparison | |
 
 The numbered SQL files are also safe to run on their own, in order, when you
@@ -229,12 +256,13 @@ app/
   site-nav.tsx                 top bar
   how-it-works/page.tsx        method, weights and limitations for readers
   api/livability/route.ts      the scoring endpoint
+  api/route/route.ts           the walk to one amenity
   api/geocode/route.ts         Nominatim proxy for address search
 sql/
   00-import.sh                 OSM → database, one shot
   01-amenities.sql             categorised amenities table
   02-amenity-nodes.sql         precomputed amenity → node pairs
-  03-walkreach-analysis.sql    walkreach_analysis(lng, lat)
+  03-walkreach-analysis.sql    walkreach_analysis(lng, lat), walkreach_route(...)
   04-livability-score.sql      superseded scorer, kept for the report
 initdb/
   01-extensions.sql            run once on first container start
@@ -266,7 +294,6 @@ on, not oversights:
 
 ## Roadmap
 
-- Highlight the walking path to a chosen amenity
 - Grid pre-computation and caching to hold response times under ~2 s
 
 ## About

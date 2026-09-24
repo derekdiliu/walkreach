@@ -14,9 +14,17 @@ export type Breakdown = {
   nearest_name: string | null;
 };
 
+export type Reached = {
+  id: number;
+  category: string;
+  name: string | null;
+  walk_m: number;
+};
+
 export type Analysis = {
   total_score: number;
   breakdown: Breakdown[];
+  amenities: Reached[];
   isochrone: {
     type: "FeatureCollection";
     features: { properties: { minutes: number }; geometry: unknown }[];

@@ -64,6 +64,42 @@ test("a shared link opens straight on its result", async ({ page }) => {
   await expect(page.getByText("out of 100")).toBeVisible();
 });
 
+test("counts what is within reach, lists it, and draws the walk to one", async ({ page }) => {
+  const response = analysisResponse(page);
+  await page.goto(`/?a=${CBD}`);
+  const analysis = await (await response).json();
+  const supermarkets = analysis.amenities.filter((a: any) => a.category === "supermarket");
+  expect(supermarkets.length).toBeGreaterThan(0);
+
+  // The counts are cumulative, so the 15 minute column counts every one listed.
+  const counts = page.getByRole("table", { name: "Amenities within 5, 10 and 15 minutes" });
+  await expect(counts.getByRole("row", { name: /^Supermarket/ }).getByRole("cell").last())
+    .toHaveText(String(supermarkets.length));
+
+  await page.getByRole("button", { name: /Supermarket .* within 15 min/ }).click();
+  const list = page.getByRole("list", { name: "Supermarket within 15 minutes" });
+  await expect(list.getByRole("button")).toHaveCount(supermarkets.length);
+
+  const nearest = supermarkets[0];
+  const route = page.waitForResponse((r) => r.url().includes("/api/route"));
+  const pick = list.getByRole("button").first();
+  await pick.click();
+  const body = await (await route).json();
+  expect(body.amenity).toEqual(nearest);
+  expect(body.route.coordinates.length).toBeGreaterThan(1);
+  await expect(pick).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("The walk is drawn on the map.")).toBeVisible();
+  // On a phone the list is scrolled well below the map; picking brings the
+  // map, and the walk on it, back into view.
+  await expect(page.locator(".map-pane")).toBeInViewport({ ratio: 0.9 });
+
+  // Picking it again takes the walk away.
+  await pick.click();
+  await expect(pick).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByText("The walk is drawn on the map.")).toBeHidden();
+  await expectNoSidewaysScroll(page);
+});
+
 test("start over clears the place and the link, and a refresh stays clear", async ({ page }) => {
   const response = analysisResponse(page);
   await page.goto(`/?a=${CBD}`);

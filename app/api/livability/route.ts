@@ -21,12 +21,14 @@ export async function GET(req: NextRequest) {
       [lng, lat],
     );
 
-    const { total_score, breakdown, isochrone } = result.rows[0].analysis;
+    const { total_score, breakdown, amenities, isochrone } =
+      result.rows[0].analysis;
 
     return NextResponse.json({
       location: { lng, lat },
       total_score,
       breakdown,
+      amenities,
       isochrone,
     });
   } catch (err) {
