@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
+import { parsePoint } from "../params";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const lng = parseFloat(searchParams.get("lng") || "");
-  const lat = parseFloat(searchParams.get("lat") || "");
+  const point = parsePoint(new URL(req.url).searchParams);
 
-  if (isNaN(lng) || isNaN(lat)) {
+  if (!point) {
     return NextResponse.json(
       { error: "Missing or invalid lng/lat parameters" },
       { status: 400 },
     );
   }
+  const { lng, lat } = point;
 
   try {
     const result = await pool.query(

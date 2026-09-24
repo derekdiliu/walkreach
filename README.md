@@ -109,7 +109,9 @@ GET /api/livability?lng=175.2793&lat=-37.7871
 
 A coordinate that is off the network (more than 200 m from any walkable way,
 out in the farmland past the city, say) comes back with `total_score: 0` and
-an empty feature list rather than an error.
+an empty feature list rather than an error. A request that is not a position
+at all answers 400: `lng` and `lat` must each be given once, be wholly a
+number (`175abc` is refused, not read as 175) and lie within ±180 and ±90.
 
 ```
 GET /api/route?lng=175.2793&lat=-37.7871&amenity=1452

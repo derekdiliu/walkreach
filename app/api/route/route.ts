@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Pool } from "pg";
+import { parseId, parsePoint } from "../params";
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -8,16 +9,16 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 // all of them with the analysis: a city-centre walk reaches 140.
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const lng = parseFloat(searchParams.get("lng") || "");
-  const lat = parseFloat(searchParams.get("lat") || "");
-  const amenity = Number(searchParams.get("amenity") || "");
+  const point = parsePoint(searchParams);
+  const amenity = parseId(searchParams, "amenity");
 
-  if (isNaN(lng) || isNaN(lat) || !Number.isInteger(amenity) || amenity <= 0) {
+  if (!point || amenity === null) {
     return NextResponse.json(
       { error: "Missing or invalid lng/lat/amenity parameters" },
       { status: 400 },
     );
   }
+  const { lng, lat } = point;
 
   try {
     const result = await pool.query(
