@@ -25,6 +25,37 @@ export default function HowItWorks() {
           much of everyday life can you reach on foot?
         </p>
 
+        <h2>A few terms</h2>
+        <dl className="terms">
+          <dt>Walking network</dt>
+          <dd>
+            Every street, footpath and walkway in Hamilton that OpenStreetMap
+            says you can walk on, joined up wherever they meet.
+          </dd>
+          <dt>Junction</dt>
+          <dd>
+            A point on the network where paths meet or a path ends. Walks are
+            measured from junction to junction along the paths between them.
+          </dd>
+          <dt>Starting junction</dt>
+          <dd>
+            The junction nearest the spot you pick. Every walk from your spot
+            is measured from there.
+          </dd>
+          <dt>Walking band</dt>
+          <dd>
+            The area you can reach within 5, 10 or 15 minutes, shaded on the
+            map. Sometimes called an isochrone.
+          </dd>
+          <dt>Within reach</dt>
+          <dd>
+            An amenity is within reach when a 15 minute walk gets to a junction
+            close to it: within 100 m of one mapped as a single point, like a
+            bus stop, or within 50 m of the edge of one mapped with an
+            outline, like most parks and schools.
+          </dd>
+        </dl>
+
         <h2>Walking distance, not straight-line distance</h2>
         <p>
           Most “minutes from the shops” claims measure distance as the crow
@@ -45,11 +76,18 @@ export default function HowItWorks() {
           network.
         </p>
         <p>
-          When you pick a spot, WalkReach finds the nearest point on the
-          walking network and follows every path outward until it has walked
-          1,250 m. The shaded bands on the map outline the places reached
-          within each distance. The outline is drawn around the points reached
-          on the network, so treat the edge as approximate.
+          When you pick a spot, WalkReach finds its starting junction and
+          follows every path outward from it until it has walked 1,250 m. The
+          shaded bands on the map outline the places reached within each
+          distance. The outline is drawn around the junctions reached, so treat
+          the edge as approximate.
+        </p>
+        <p>
+          A spot more than 200 m from any path, out in a paddock or the middle
+          of the lake, is outside the network. It gets no bands and a score of
+          0, rather than being scored from wherever the nearest path happens
+          to lead. A few paths are mapped on their own, joined to nothing
+          else; a walk never starts on one of those.
         </p>
 
         <h2>The score</h2>
@@ -88,6 +126,10 @@ export default function HowItWorks() {
           The label next to the score, from “Car-dependent” up to “Everything
           close by”, is a plain-language reading of the same number.
         </p>
+        <p>
+          A second or third supermarket nearby adds nothing to the score, but
+          how many there are is shown below it.
+        </p>
 
         <h2>What counts as each essential</h2>
         <ul>
@@ -118,6 +160,42 @@ export default function HowItWorks() {
           is 200 m away.
         </p>
 
+        <h2>What is within reach</h2>
+        <p>
+          Under the score, a table counts how many of each essential are within
+          a 5, 10 and 15 minute walk. The counts add up as the walk gets
+          longer: anything within 5 minutes is also within 10.
+        </p>
+        <p>
+          Open a category to list everything of that kind within 15 minutes,
+          nearest first, with its walking distance. Pick one to see the walk
+          there drawn on the map. The solid line is the walk that was measured.
+          The short dashed lines at each end, from your spot onto the network
+          and from the network to the amenity, are not part of the distance.
+        </p>
+
+        <h2>Comparing two places</h2>
+        <p>
+          In “Compare two places”, pick a place A and a place B. Each one’s
+          whole 15 minute walk is shaded in its own colour, and the panel sets
+          the two scores and the nearest of each essential side by side. The
+          closer of the two is shown in bold.
+        </p>
+        <p>
+          The address bar always holds the places on screen, so the link can be
+          shared or bookmarked and opens straight on the same result.
+        </p>
+
+        <h2>Finding an address</h2>
+        <p>
+          As you type, WalkReach suggests suburbs, streets and named
+          supermarkets, clinics, schools and parks from its own copy of the
+          map. A suburb or a named place goes straight to its spot. A street is
+          looked up with Nominatim once you pick it, because a street can run
+          for kilometres; if it has more than one part, you choose which. Type
+          a house number first, as in “13 Hukanui”, to look up that address.
+        </p>
+
         <h2>Data and tools</h2>
         <ul>
           <li>
@@ -131,7 +209,8 @@ export default function HowItWorks() {
             The map is drawn with MapLibre GL over OpenStreetMap tiles.
           </li>
           <li>
-            Address search uses{" "}
+            Suggestions come from the same OpenStreetMap data. Addresses and
+            streets are looked up with{" "}
             <a href="https://nominatim.openstreetmap.org">Nominatim</a>,
             limited to Hamilton.
           </li>
@@ -142,22 +221,38 @@ export default function HowItWorks() {
           <li>
             The results are only as good as OpenStreetMap. A missing footpath
             makes a walk look longer than it is, and an unmapped supermarket is
-            not counted.
+            not counted. A shop that has closed stays until someone removes it
+            from the map, and a place mapped without a name is listed as
+            unnamed.
           </li>
           <li>
-            Only the nearest of each essential counts. Having three
-            supermarkets within reach scores the same as having one.
+            The walk starts at the nearest junction, not at your door, and the
+            stretch between them is not counted. For spots on a street that
+            stretch is usually short, about 25 m, and under 90 m nine times in
+            ten. On a long road with few junctions it can be a few hundred
+            metres.
+          </li>
+          <li>
+            The last stretch to an amenity, from the junction to its door or
+            the edge of its grounds, is not counted either.
+          </li>
+          <li>
+            Only the nearest of each essential counts towards the score. Having
+            three supermarkets within reach scores the same as having one,
+            although all three are listed.
           </li>
           <li>
             The walking speed is the same everywhere. Hills, waits at crossings
             and mobility needs are not taken into account.
           </li>
           <li>
-            23 of about 1,400 amenities, mostly bus stops, are too far from any
-            mapped path to be matched to the network, so they do not count
-            towards any score.
+            30 of the 1,642 amenities, 24 of them bus stops, are too far from
+            any mapped path to be matched to the network, so they are never
+            within reach and never count towards a score.
           </li>
-          <li>Only locations inside Hamilton can be analysed.</li>
+          <li>
+            Only locations in and just around Hamilton can be analysed.
+          </li>
         </ul>
 
         <h2>About</h2>

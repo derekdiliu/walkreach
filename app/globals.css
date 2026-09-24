@@ -248,6 +248,19 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
+.article .terms {
+  margin-bottom: 14px;
+}
+
+.article .terms dt {
+  font-weight: 600;
+}
+
+.article .terms dd {
+  margin: 0 0 10px;
+  color: #444;
+}
+
 .article .worked {
   background: #f2f8fa;
   border: 1px solid #cfdde2;
