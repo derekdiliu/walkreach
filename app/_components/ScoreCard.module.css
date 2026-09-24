@@ -1,0 +1,209 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.score {
+  flex-shrink: 0;
+  border: 1px solid #cfdde2;
+  border-radius: 6px;
+  background: #f2f8fa;
+  padding: 5px 10px 7px;
+  text-align: center;
+}
+
+.outOf {
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #6b8a94;
+}
+
+.total {
+  font-size: 30px;
+  font-weight: bold;
+  color: #2c5f6f;
+  line-height: 1.1;
+}
+
+.band {
+  padding-top: 2px;
+}
+
+.bandLabel {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.blurb {
+  color: #666;
+  margin-top: 3px;
+}
+
+/* What is within reach */
+
+.counts {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 22px;
+  font-size: 13.5px;
+}
+
+.countsCorner {
+  text-align: left;
+  font-weight: 400;
+  padding-bottom: 4px;
+}
+
+.number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: #1a1a1a;
+}
+
+.countsHead {
+  font-weight: 400;
+  padding-bottom: 4px;
+  color: inherit;
+}
+
+.zero {
+  color: #bbb;
+}
+
+.countsRow {
+  border-top: 1px solid #eee;
+}
+
+.countsName {
+  padding: 5px 0;
+}
+
+/* The nearest of each */
+
+.nearestHeading {
+  margin-top: 22px;
+  margin-bottom: 4px;
+}
+
+.category {
+  border-top: 1px solid #eee;
+}
+
+.row {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 9px 0;
+  background: none;
+  border: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* Disabled when nothing of the kind is within reach: nothing to open. */
+.row:disabled {
+  cursor: default;
+}
+
+.rowText {
+  min-width: 0;
+}
+
+.categoryName {
+  font-weight: 500;
+}
+
+.count {
+  color: #2c5f6f;
+  font-weight: 400;
+  font-size: 13px;
+}
+
+.detail {
+  color: #666;
+  font-size: 13px;
+}
+
+.nearest {
+  display: flex;
+  gap: 5px;
+}
+
+.metres {
+  flex-shrink: 0;
+}
+
+.points {
+  flex-shrink: 0;
+  font-weight: 500;
+  color: #1a1a1a;
+}
+
+.none {
+  color: #aaa;
+}
+
+.max {
+  color: #aaa;
+  font-weight: 400;
+}
+
+.footnote {
+  color: #888;
+  font-size: 12.5px;
+  margin-top: 14px;
+}
+
+/* Everything of one kind within reach */
+
+.list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  /* A city-centre walk reaches dozens of bus stops. */
+  max-height: 264px;
+  overflow-y: auto;
+}
+
+.amenity {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  padding: 6px 8px;
+  border: none;
+  border-left: 3px solid transparent;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.amenity[aria-pressed="true"] {
+  background: #fdf1ea;
+}
+
+.amenityName {
+  flex: 1;
+  min-width: 0;
+}
+
+.walk {
+  flex-shrink: 0;
+  color: #666;
+}
+
+.routeNote {
+  color: #888;
+  font-size: 12px;
+  padding: 6px 8px 0;
+}

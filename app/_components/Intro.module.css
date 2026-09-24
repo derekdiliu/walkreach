@@ -1,0 +1,17 @@
+.question {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.how {
+  margin-bottom: 10px;
+}
+
+.network {
+  color: #666;
+  margin-bottom: 18px;
+}
+
+.try {
+  padding: 10px 16px;
+}

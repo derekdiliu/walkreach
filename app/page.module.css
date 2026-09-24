@@ -1,0 +1,19 @@
+.startOver {
+  display: block;
+  margin-top: 8px;
+  margin-left: auto;
+  padding: 0;
+  font-size: 13px;
+}
+
+.spacer {
+  height: 20px;
+}
+
+.status {
+  color: #666;
+}
+
+.offNetwork {
+  color: #a33;
+}

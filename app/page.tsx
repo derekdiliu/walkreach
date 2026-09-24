@@ -2,125 +2,34 @@
 
 import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
-
-type Breakdown = {
-  category: string;
-  weighted_score: number;
-  max_score: number;
-  nearest_m: number | null;
-  nearest_name: string | null;
-};
-type Reached = {
-  id: number;
-  category: string;
-  name: string | null;
-  walk_m: number;
-};
-type Place = { lng: number; lat: number; label: string };
-type Suggestion = {
-  label: string;
-  kind: string;
-  context: string | null;
-  point: LngLat | null;
-};
-type Result = {
-  location: { lng: number; lat: number };
-  total_score: number;
-  breakdown: Breakdown[];
-  amenities: Reached[];
-  isochrone: { type: string; features: any[] };
-};
-type Route = {
-  amenity: Reached;
-  destination: { type: "Point"; coordinates: [number, number] };
-  route: { type: string; coordinates: any[] };
-  connectors: { type: "MultiLineString"; coordinates: [number, number][][] };
-};
-type LngLat = { lng: number; lat: number };
-type SlotKey = "a" | "b";
-type Slot = {
-  // label is null for a point clicked on the map rather than searched for
-  point: (LngLat & { label: string | null }) | null;
-  result: Result | null;
-  loading: boolean;
-};
-
-const EMPTY_GEOJSON = { type: "FeatureCollection" as const, features: [] };
-const EMPTY_SLOT: Slot = { point: null, result: null, loading: false };
-
-const BANDS = [
-  { minutes: 5, color: "#0d3b4f", opacity: 0.66 },
-  { minutes: 10, color: "#3e93ad", opacity: 0.54 },
-  { minutes: 15, color: "#a9dceb", opacity: 0.46 },
-];
-
-const SLOT_COLOR: Record<SlotKey, string> = { a: "#1f78b4", b: "#e8710a" };
-const COMPARE_OPACITY = 0.38;
-
-const ROUTE_COLOR = "#c2410c";
-
-// The same cut-offs the bands on the map are drawn at: 1,250 m is 15 minutes.
-const walkMinutes = (m: number) => Math.max(1, Math.round((m / 1250) * 15));
-const withinMinutes = (m: number, minutes: number) => m <= (minutes / 15) * 1250;
-
-const amenityName = (a: { name: string | null; category: string }) =>
-  a.name ?? `Unnamed ${(CATEGORY_LABEL[a.category] ?? a.category).toLowerCase()}`;
-
-// "Area", "Street · Hamilton North", "Supermarket · Chartwell".
-const suggestionKind = (s: { kind: string; context: string | null }) => {
-  const kind =
-    s.kind === "place" ? "Area" : s.kind === "street" ? "Street" : (CATEGORY_LABEL[s.kind] ?? s.kind);
-  return s.context ? `${kind} · ${s.context}` : kind;
-};
-
-const isOffNetwork = (result: Result) => result.isochrone.features.length === 0;
-
-const formatPoint = (p: LngLat) => `${p.lng.toFixed(5)},${p.lat.toFixed(5)}`;
-
-const parsePoint = (value: string | null): LngLat | null => {
-  const [lng, lat] = (value ?? "").split(",").map(Number);
-  return Number.isFinite(lng) && Number.isFinite(lat) ? { lng, lat } : null;
-};
-
-// A score on its own does not tell anyone whether 62 is good. Each band says
-// what the number means in terms of the five essentials WalkReach actually
-// measures, over the 15 minute network walk it measures them within.
-const SCORE_BANDS = [
-  { min: 80, label: "Everything close by",
-    blurb: "All five everyday essentials are a short walk from here." },
-  { min: 60, label: "Mostly walkable",
-    blurb: "Most everyday essentials are within a 15 minute walk." },
-  { min: 40, label: "Some essentials nearby",
-    blurb: "A few essentials are close. Others mean a longer trip." },
-  { min: 20, label: "Limited on foot",
-    blurb: "Most everyday trips from here would need a car or a bus." },
-  { min: 0, label: "Car-dependent",
-    blurb: "Almost nothing is within a 15 minute walk." },
-];
-
-const scoreBand = (score: number) =>
-  SCORE_BANDS.find((b) => score >= b.min) ?? SCORE_BANDS[SCORE_BANDS.length - 1];
-
-const CATEGORY_LABEL: Record<string, string> = {
-  supermarket: "Supermarket",
-  clinic: "Clinic",
-  school: "School",
-  park: "Park",
-  bus_stop: "Bus stop",
-};
-
-const CITY_CENTRE: [number, number] = [175.2793, -37.7871];
+import {
+  CITY_CENTRE,
+  EMPTY_GEOJSON,
+  EMPTY_SLOT,
+  formatPoint,
+  isOffNetwork,
+  parsePoint,
+  type LngLat,
+  type Place,
+  type Result,
+  type Slot,
+  type SlotKey,
+} from "./_lib/walkreach";
+import { useWalkMap } from "./_components/use-walk-map";
+import { useWalkRoute } from "./_components/use-walk-route";
+import { useAddressSearch } from "./_components/use-address-search";
+import { WelcomeCard } from "./_components/WelcomeCard";
+import { ModeSwitch } from "./_components/ModeSwitch";
+import { SlotPicker } from "./_components/SlotPicker";
+import { SearchBox } from "./_components/SearchBox";
+import { Intro } from "./_components/Intro";
+import { ScoreCard } from "./_components/ScoreCard";
+import { ComparePanel } from "./_components/ComparePanel";
+import { Legend } from "./_components/Legend";
+import ui from "./_components/ui.module.css";
+import styles from "./page.module.css";
 
 export default function Home() {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
-  const markerClassRef = useRef<any>(null);
-  const markersRef = useRef<Record<SlotKey, any>>({ a: null, b: null });
-  // Bumped each time a slot is re-placed or cleared, so a response for a point
-  // that is no longer there is dropped rather than drawn over its replacement.
-  const requestRef = useRef<Record<SlotKey, number>>({ a: 0, b: 0 });
-  const clickRef = useRef<((lng: number, lat: number) => void) | null>(null);
-  const [mapReady, setMapReady] = useState(false);
   const [slots, setSlots] = useState<Record<SlotKey, Slot>>({
     a: EMPTY_SLOT,
     b: EMPTY_SLOT,
@@ -128,20 +37,14 @@ export default function Home() {
   const [compare, setCompare] = useState(false);
   const [active, setActive] = useState<SlotKey>("a");
   const [showWelcome, setShowWelcome] = useState(true);
-  const [query, setQuery] = useState("");
-  const [searching, setSearching] = useState(false);
-  const [choices, setChoices] = useState<Place[] | null>(null);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [highlighted, setHighlighted] = useState(-1);
-  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // As requestRef: a slow answer for what was typed earlier is dropped.
-  const suggestRequestRef = useRef(0);
-  const [searchNote, setSearchNote] = useState<string | null>(null);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
-  // As requestRef, for the route: a slow answer for an amenity no longer
-  // picked must not be drawn.
-  const routeRequestRef = useRef(0);
+  // Bumped each time a slot is re-placed or cleared, so a response for a point
+  // that is no longer there is dropped rather than drawn over its replacement.
+  const requestRef = useRef<Record<SlotKey, number>>({ a: 0, b: 0 });
+
+  const map = useWalkMap({ compare, onClick: (p) => setPoint(p, null) });
+  const route = useWalkRoute(map);
+  const search = useAddressSearch({ mapReady: map.ready, goTo: (place) => goTo(place) });
 
   const { result, loading } = slots.a;
   const offNetwork = !!result && isOffNetwork(result);
@@ -149,111 +52,19 @@ export default function Home() {
   const updateSlot = (key: SlotKey, patch: Partial<Slot>) =>
     setSlots((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
 
-  // A click can still land before the style has finished parsing, so hold
-  // the data until the source is there rather than dropping it.
-  const setSource = (id: string, data: any) => {
-    const map = mapRef.current;
-    if (!map) return;
-    const source = map.getSource(id);
-    if (source) source.setData(data);
-    else map.once("styledata", () => map.getSource(id).setData(data));
-  };
-
-  const setIsochrone = (key: SlotKey, data: any) =>
-    setSource(`isochrone-${key}`, data);
-
-  const clearRoute = () => {
-    routeRequestRef.current++;
-    setSelected(null);
-    setSource("route", EMPTY_GEOJSON);
-  };
-
-  const showRoute = async (amenity: Reached) => {
-    const point = slots.a.point;
-    if (!point) return;
-    if (selected === amenity.id) return clearRoute();
-
-    const request = ++routeRequestRef.current;
-    setSelected(amenity.id);
-    setSource("route", EMPTY_GEOJSON);
-
-    // On a phone the list is below the map, so the walk would be drawn out
-    // of sight. Bring the map back up; side by side it never leaves the
-    // screen and this does nothing.
-    const pane = mapContainer.current?.parentElement;
-    if (pane && pane.getBoundingClientRect().top < 0)
-      pane.scrollIntoView({ behavior: "smooth", block: "start" });
-
-    let data: Route | null;
-    try {
-      const res = await fetch(
-        `/api/route?lng=${point.lng}&lat=${point.lat}&amenity=${amenity.id}`,
-      );
-      data = res.ok ? await res.json() : null;
-    } catch {
-      data = null;
-    }
-
-    if (request !== routeRequestRef.current) return;
-    if (!data) return setSelected(null);
-
-    setSource("route", {
-      type: "FeatureCollection",
-      features: [
-        { type: "Feature", properties: { kind: "walk" }, geometry: data.route },
-        { type: "Feature", properties: { kind: "connector" }, geometry: data.connectors },
-        { type: "Feature", properties: { kind: "destination" }, geometry: data.destination },
-      ],
-    });
-
-    // Frame the pin, the walk and the amenity together.
-    const coords: [number, number][] = [
-      [point.lng, point.lat],
-      data.destination.coordinates,
-      ...data.connectors.coordinates.flat(),
-      ...(data.route.type === "MultiLineString"
-        ? data.route.coordinates.flat()
-        : data.route.coordinates),
-    ];
-    const lngs = coords.map((c) => c[0]);
-    const lats = coords.map((c) => c[1]);
-    mapRef.current?.fitBounds(
-      [
-        [Math.min(...lngs), Math.min(...lats)],
-        [Math.max(...lngs), Math.max(...lats)],
-      ],
-      { padding: 48, maxZoom: 17 },
-    );
-  };
-
-  const putMarker = (key: SlotKey, lng: number, lat: number, coloured: boolean) => {
-    markersRef.current[key]?.remove();
-    markersRef.current[key] = new markerClassRef.current(
-      coloured ? { color: SLOT_COLOR[key] } : {},
-    )
-      .setLngLat([lng, lat])
-      .addTo(mapRef.current);
-  };
-
-  const analyse = async (
-    key: SlotKey,
-    lng: number,
-    lat: number,
-    label: string | null,
-    coloured: boolean,
-  ) => {
+  const analyse = async (key: SlotKey, p: LngLat, label: string | null, coloured: boolean) => {
     setShowWelcome(false);
-    putMarker(key, lng, lat, coloured);
+    map.putMarker(key, p, coloured);
     const request = ++requestRef.current[key];
 
-    updateSlot(key, { point: { lng, lat, label }, result: null, loading: true });
-    setIsochrone(key, EMPTY_GEOJSON);
+    updateSlot(key, { point: { ...p, label }, result: null, loading: true });
+    map.setData(`isochrone-${key}`, EMPTY_GEOJSON);
     // The route is from A; a new A leaves it starting somewhere else.
-    if (key === "a") clearRoute();
+    if (key === "a") route.clear();
 
     let data: Result | null;
     try {
-      const res = await fetch(`/api/livability?lng=${lng}&lat=${lat}`);
+      const res = await fetch(`/api/livability?lng=${p.lng}&lat=${p.lat}`);
       data = res.ok ? await res.json() : null;
     } catch {
       data = null;
@@ -261,217 +72,29 @@ export default function Home() {
 
     if (request !== requestRef.current[key]) return;
     updateSlot(key, { result: data, loading: false });
-    if (data) setIsochrone(key, data.isochrone);
+    if (data) map.setData(`isochrone-${key}`, data.isochrone);
   };
 
-  // Frame both walks, not just both pins: each can reach 1,250 m out, which
-  // at Hamilton's latitude is about 0.0112 degrees of latitude and 0.0142 of
-  // longitude.
-  const fitBoth = (p: LngLat, q: LngLat) =>
-    mapRef.current?.fitBounds(
-      [
-        [Math.min(p.lng, q.lng) - 0.0142, Math.min(p.lat, q.lat) - 0.0112],
-        [Math.max(p.lng, q.lng) + 0.0142, Math.max(p.lat, q.lat) + 0.0112],
-      ],
-      { padding: 24 },
-    );
-
+  // A shared link opens on what was shared, not on the welcome card. Read
+  // once the map is up: nothing can place a point before then, so the effect
+  // mirroring points into the address bar has not rewritten it yet.
   useEffect(() => {
-    let map: any;
-    let cancelled = false;
-
-    // Read the shared points now: once a point is placed, the effect that
-    // mirrors state into the address bar rewrites the query string.
+    if (!map.ready) return;
     const params = new URLSearchParams(window.location.search);
     const sharedA = parsePoint(params.get("a"));
     const sharedB = parsePoint(params.get("b"));
-
-    (async () => {
-      const { Map: MapLibreMap, Marker, setWorkerUrl } = await import(
-        "maplibre-gl"
-      );
-
-      // MapLibre resolves its worker from import.meta.url, which Turbopack
-      // rewrites to a chunk path where the worker file does not exist. The
-      // worker then dies silently and anything parsed off the main thread
-      // (GeoJSON sources) never renders. Point it at the copy in public/.
-      setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
-
-      if (cancelled || mapRef.current || !mapContainer.current) return;
-
-      map = new MapLibreMap({
-        container: mapContainer.current,
-        style: {
-          version: 8,
-          sources: {
-            osm: {
-              type: "raster",
-              tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-              tileSize: 256,
-              attribution: "© OpenStreetMap contributors",
-            },
-            "isochrone-a": { type: "geojson", data: EMPTY_GEOJSON },
-            "isochrone-b": { type: "geojson", data: EMPTY_GEOJSON },
-            route: { type: "geojson", data: EMPTY_GEOJSON },
-          },
-          layers: [
-            { id: "osm", type: "raster", source: "osm" },
-            {
-              id: "isochrone-fill",
-              type: "fill",
-              source: "isochrone-a",
-              paint: {
-                // each band gets its own colour AND opacity, so the three
-                // rings read as distinct steps rather than one wash
-                "fill-color": [
-                  "match",
-                  ["get", "minutes"],
-                  5,
-                  BANDS[0].color,
-                  10,
-                  BANDS[1].color,
-                  15,
-                  BANDS[2].color,
-                  "#cccccc",
-                ],
-                "fill-opacity": [
-                  "match",
-                  ["get", "minutes"],
-                  5,
-                  BANDS[0].opacity,
-                  10,
-                  BANDS[1].opacity,
-                  15,
-                  BANDS[2].opacity,
-                  0.4,
-                ],
-              },
-            },
-            {
-              id: "isochrone-outline",
-              type: "line",
-              source: "isochrone-a",
-              paint: {
-                "line-color": "#ffffff",
-                "line-width": 1.5,
-                "line-opacity": 0.9,
-              },
-            },
-            // Comparing, each place fills its whole 15 minute walk in one
-            // colour. The bands are separate rings, so filling all three
-            // gives the full area; two sets of three shades on one map
-            // could not be told apart.
-            {
-              id: "compare-a-fill",
-              type: "fill",
-              source: "isochrone-a",
-              layout: { visibility: "none" },
-              paint: {
-                "fill-color": SLOT_COLOR.a,
-                "fill-opacity": COMPARE_OPACITY,
-              },
-            },
-            {
-              id: "compare-b-fill",
-              type: "fill",
-              source: "isochrone-b",
-              layout: { visibility: "none" },
-              paint: {
-                "fill-color": SLOT_COLOR.b,
-                "fill-opacity": COMPARE_OPACITY,
-              },
-            },
-            // The walk to a picked amenity, cased in white so it stays
-            // readable over any of the band colours. The connectors are the
-            // stretches off the network the distance does not count, so they
-            // are dashed and thinner.
-            {
-              id: "route-casing",
-              type: "line",
-              source: "route",
-              filter: ["==", ["get", "kind"], "walk"],
-              layout: { "line-join": "round", "line-cap": "round" },
-              paint: { "line-color": "#ffffff", "line-width": 8 },
-            },
-            {
-              id: "route-line",
-              type: "line",
-              source: "route",
-              filter: ["==", ["get", "kind"], "walk"],
-              layout: { "line-join": "round", "line-cap": "round" },
-              paint: { "line-color": ROUTE_COLOR, "line-width": 4.5 },
-            },
-            {
-              id: "route-connector",
-              type: "line",
-              source: "route",
-              filter: ["==", ["get", "kind"], "connector"],
-              paint: {
-                "line-color": ROUTE_COLOR,
-                "line-width": 2.5,
-                "line-dasharray": [1.5, 1.5],
-              },
-            },
-            {
-              id: "route-destination",
-              type: "circle",
-              source: "route",
-              filter: ["==", ["get", "kind"], "destination"],
-              paint: {
-                "circle-radius": 7,
-                "circle-color": ROUTE_COLOR,
-                "circle-stroke-color": "#ffffff",
-                "circle-stroke-width": 2.5,
-              },
-            },
-          ],
-        },
-        center: CITY_CENTRE,
-        zoom: 13,
-      });
-
-      mapRef.current = map;
-      markerClassRef.current = Marker;
-      setMapReady(true);
-      map.on("click", (e: any) => clickRef.current?.(e.lngLat.lng, e.lngLat.lat));
-
-      // A shared link opens on what was shared, not on the welcome card.
-      if (sharedA && sharedB) {
-        setCompare(true);
-        setActive("b");
-        analyse("a", sharedA.lng, sharedA.lat, null, true);
-        analyse("b", sharedB.lng, sharedB.lat, null, true);
-        fitBoth(sharedA, sharedB);
-      } else if (sharedA) {
-        analyse("a", sharedA.lng, sharedA.lat, null, false);
-        map.jumpTo({ center: [sharedA.lng, sharedA.lat], zoom: 15 });
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      if (map) map.remove();
-      mapRef.current = null;
-      markersRef.current = { a: null, b: null };
-    };
-  }, []);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!mapReady || !map) return;
-
-    const apply = () => {
-      for (const id of ["isochrone-fill", "isochrone-outline"])
-        map.setLayoutProperty(id, "visibility", compare ? "none" : "visible");
-      for (const id of ["compare-a-fill", "compare-b-fill"])
-        map.setLayoutProperty(id, "visibility", compare ? "visible" : "none");
-    };
-    // Not isStyleLoaded(): it stays false while any tile is still loading,
-    // and "load" has long since fired by then, so the switch would never
-    // apply. The layers existing is all setLayoutProperty needs.
-    if (map.getLayer("compare-a-fill")) apply();
-    else map.once("styledata", apply);
-  }, [compare, mapReady]);
+    if (sharedA && sharedB) {
+      setCompare(true);
+      setActive("b");
+      analyse("a", sharedA, null, true);
+      analyse("b", sharedB, null, true);
+      map.fitBoth(sharedA, sharedB);
+    } else if (sharedA) {
+      analyse("a", sharedA, null, false);
+      map.jumpTo(sharedA, 15);
+    }
+    // Only on the map becoming ready; analyse and map change every render.
+  }, [map.ready]);
 
   // Mirror the placed points into the address bar, so copying the URL shares
   // exactly what is on screen.
@@ -483,40 +106,33 @@ export default function Home() {
     window.history.replaceState(null, "", qs);
   }, [slots.a.point, slots.b.point]);
 
-  const setPoint = (lng: number, lat: number, label: string | null) => {
-    analyse(active, lng, lat, label, compare);
+  const setPoint = (p: LngLat, label: string | null) => {
+    analyse(active, p, label, compare);
     // B is almost always what comes after A, so move on to it.
     if (compare && active === "a" && !slots.b.point) setActive("b");
   };
 
-  // The map's click handler is bound once, so point it at the latest state.
-  useEffect(() => {
-    clickRef.current = (lng, lat) => setPoint(lng, lat, null);
-  });
-
   const setMode = (on: boolean) => {
     if (on === compare) return;
     const a = slots.a.point;
-    if (a) putMarker("a", a.lng, a.lat, on);
-    clearRoute();
+    if (a) map.putMarker("a", a, on);
+    route.clear();
     if (!on) {
       requestRef.current.b++;
-      markersRef.current.b?.remove();
-      markersRef.current.b = null;
-      setIsochrone("b", EMPTY_GEOJSON);
+      map.removeMarker("b");
+      map.setData("isochrone-b", EMPTY_GEOJSON);
       updateSlot("b", EMPTY_SLOT);
     }
     setCompare(on);
     setActive(on && a ? "b" : "a");
-    setChoices(null);
-    setSearchNote(null);
+    search.clearResults();
   };
 
   const goTo = (place: Place) => {
     const other = slots[active === "a" ? "b" : "a"].point;
-    if (compare && other) fitBoth(place, other);
-    else mapRef.current?.flyTo({ center: [place.lng, place.lat], zoom: 15 });
-    setPoint(place.lng, place.lat, place.label);
+    if (compare && other) map.fitBoth(place, other);
+    else map.flyTo(place, 15);
+    setPoint(place, place.label);
   };
 
   // A link opens on the point it carries, and so does a refresh, so clearing
@@ -524,20 +140,17 @@ export default function Home() {
   const startOver = () => {
     for (const key of ["a", "b"] as const) {
       requestRef.current[key]++;
-      markersRef.current[key]?.remove();
-      markersRef.current[key] = null;
-      setIsochrone(key, EMPTY_GEOJSON);
+      map.removeMarker(key);
+      map.setData(`isochrone-${key}`, EMPTY_GEOJSON);
     }
-    clearRoute();
+    route.clear();
     setOpenCategory(null);
     setSlots({ a: EMPTY_SLOT, b: EMPTY_SLOT });
     setCompare(false);
     setActive("a");
-    setQuery("");
-    setChoices(null);
-    setSearchNote(null);
+    search.reset();
     setShowWelcome(true);
-    mapRef.current?.flyTo({ center: CITY_CENTRE, zoom: 13 });
+    map.flyTo(CITY_CENTRE, 13);
     // The effect mirroring the points into the address bar stops at an empty
     // A, so the query string is cleared here.
     window.history.replaceState(null, "", window.location.pathname);
@@ -547,1106 +160,72 @@ export default function Home() {
   // is no Marker to put down and no source to draw the walk into. On a slow
   // connection MapLibre arrives well after the buttons do, and a click in
   // between threw instead of scoring, so those buttons stay disabled until
-  // mapReady.
+  // map.ready.
   const tryCityCentre = () => {
-    mapRef.current?.flyTo({ center: CITY_CENTRE, zoom: 14 });
-    setPoint(CITY_CENTRE[0], CITY_CENTRE[1], null);
-  };
-
-  const closeSuggestions = () => {
-    if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
-    suggestRequestRef.current++;
-    setSuggestions([]);
-    setHighlighted(-1);
-  };
-
-  // Suggestions come from our own names (/api/suggest), a short pause after
-  // each keystroke. Nominatim is not asked until a street is picked or the
-  // search submitted: its usage policy rules out a lookup per keystroke.
-  const type = (value: string) => {
-    setQuery(value);
-    closeSuggestions();
-    const q = value.trim();
-    if (q.length < 2) return;
-
-    const request = suggestRequestRef.current;
-    suggestTimerRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
-        const { suggestions } = (await res.json()) as { suggestions?: Suggestion[] };
-        if (request === suggestRequestRef.current) setSuggestions(suggestions ?? []);
-      } catch {
-        // No suggestions is fine: the search button still works.
-      }
-    }, 150);
-  };
-
-  // A place or an amenity comes with its point, so it is gone to straight
-  // away. A street does not - it runs for kilometres - so it is searched for
-  // as before, which asks which part of it when there is more than one.
-  const pick = (s: Suggestion) => {
-    closeSuggestions();
-    setQuery(s.label);
-    if (!mapReady) return;
-    if (s.point) {
-      setChoices(null);
-      setSearchNote(null);
-      goTo({ ...s.point, label: s.label });
-    } else runSearch(s.label);
-  };
-
-  const onSearchKey = (e: React.KeyboardEvent) => {
-    if (suggestions.length === 0) return;
-    // -1 is the text as typed; the arrows wrap through it.
-    const last = suggestions.length - 1;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setHighlighted((i) => (i >= last ? -1 : i + 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setHighlighted((i) => (i <= -1 ? last : i - 1));
-    } else if (e.key === "Enter" && highlighted >= 0) {
-      e.preventDefault();
-      pick(suggestions[highlighted]);
-    } else if (e.key === "Escape") {
-      closeSuggestions();
-    }
-  };
-
-  const search = (e: React.FormEvent) => {
-    e.preventDefault();
-    closeSuggestions();
-    runSearch(query);
-  };
-
-  const runSearch = async (text: string) => {
-    const q = text.trim();
-    if (q.length < 3) return;
-
-    setSearching(true);
-    setChoices(null);
-    setSearchNote(null);
-    try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
-      const { results } = (await res.json()) as { results?: Place[] };
-
-      if (!results || results.length === 0) {
-        setSearchNote(
-          "No match in Hamilton. Try a street name, or click the map.",
-        );
-      } else if (results.length === 1) {
-        goTo(results[0]);
-      } else {
-        // A street runs for kilometres and scores differently along it, so
-        // picking the top hit silently would be picking one end of it.
-        setChoices(results);
-      }
-    } catch {
-      setSearchNote("Address lookup is unavailable. Click the map instead.");
-    }
-    setSearching(false);
-  };
-
-  const choose = (place: Place) => {
-    setChoices(null);
-    setQuery(place.label);
-    goTo(place);
+    map.flyTo(CITY_CENTRE, 14);
+    setPoint(CITY_CENTRE, null);
   };
 
   return (
     <div className="layout">
       <div className="map-pane">
-        <div ref={mapContainer} />
+        <div ref={map.containerRef} />
         {showWelcome && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(15, 30, 35, 0.42)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 24,
-              // let clicks fall through to the map: the card says to click it
-              pointerEvents: "none",
-              // above MapLibre's controls, which sit at z-index 2
-              zIndex: 3,
-            }}
-          >
-            <div
-              className="welcome-card"
-              style={{
-                pointerEvents: "auto",
-                background: "#ffffff",
-                color: "#1a1a1a",
-                borderRadius: 12,
-                // no bottom padding: the pinned buttons carry it, so nothing
-                // shows through below them as the card scrolls
-                padding: "32px 34px 0",
-                maxWidth: 460,
-                // A phone gives the map about half the screen, less than the
-                // card needs: scroll inside it rather than spill over the top
-                // bar and the panel.
-                maxHeight: "100%",
-                overflowY: "auto",
-                boxShadow: "0 18px 48px rgba(0,0,0,0.28)",
-                lineHeight: 1.55,
-              }}
-            >
-              <h2 style={{ fontSize: 26, marginBottom: 8 }}>WalkReach</h2>
-              <p style={{ fontSize: 17, marginBottom: 14 }}>
-                Find out how walkable any address in Hamilton really is.
-              </p>
-              <p style={{ color: "#555", marginBottom: 20 }}>
-                Distances are measured along real streets and footpaths, not
-                straight lines — so the Waikato River and every other barrier
-                counts, the way it does when you actually walk.
-              </p>
-
-              <ol
-                style={{
-                  margin: "0 0 12px 0",
-                  paddingLeft: 20,
-                  color: "#444",
-                  fontSize: 14,
-                }}
-              >
-                <li style={{ marginBottom: 6 }}>
-                  Search an address, or click anywhere on the map — a
-                  street, a suburb, a place you are thinking of renting.
-                </li>
-                <li style={{ marginBottom: 6 }}>
-                  See how far you can walk from there in 5, 10 and 15 minutes.
-                </li>
-                <li>
-                  Get a walkability score and how far the nearest supermarket,
-                  clinic, school, park and bus stop are on foot.
-                </li>
-              </ol>
-
-              <div
-                className="welcome-actions"
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "center",
-                  // pinned, so the way in is on screen before any scrolling
-                  position: "sticky",
-                  bottom: 0,
-                  background: "#ffffff",
-                  padding: "12px 0 32px",
-                }}
-              >
-                <button
-                  onClick={tryCityCentre}
-                  disabled={!mapReady}
-                  style={{
-                    background: "#2c5f6f",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: 6,
-                    padding: "11px 18px",
-                    fontSize: 14,
-                    cursor: mapReady ? "pointer" : "wait",
-                    fontFamily: "inherit",
-                    opacity: mapReady ? 1 : 0.6,
-                  }}
-                >
-                  Show me an example
-                </button>
-                <button
-                  onClick={() => setShowWelcome(false)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#2c5f6f",
-                    padding: "11px 6px",
-                    fontSize: 14,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >
-                  Pick a spot myself
-                </button>
-              </div>
-            </div>
-          </div>
+          <WelcomeCard
+            mapReady={map.ready}
+            onExample={tryCityCentre}
+            onDismiss={() => setShowWelcome(false)}
+          />
         )}
       </div>
       <aside className="panel">
-        <div
-          role="group"
-          aria-label="Mode"
-          style={{
-            display: "flex",
-            border: "1px solid #2c5f6f",
-            borderRadius: 6,
-            overflow: "hidden",
-            marginBottom: 12,
-          }}
-        >
-          {[false, true].map((on) => (
-            <button
-              key={String(on)}
-              onClick={() => setMode(on)}
-              aria-pressed={compare === on}
-              style={{
-                flex: 1,
-                padding: "7px 0",
-                border: "none",
-                background: compare === on ? "#2c5f6f" : "#fff",
-                color: compare === on ? "#fff" : "#2c5f6f",
-                fontSize: 13.5,
-                fontFamily: "inherit",
-                cursor: "pointer",
-              }}
-            >
-              {on ? "Compare two places" : "One place"}
-            </button>
-          ))}
-        </div>
+        <ModeSwitch compare={compare} onChange={setMode} />
 
-        {compare && (
-          <>
-            <div style={{ display: "flex", gap: 6 }}>
-              {(["a", "b"] as const).map((key) => {
-                const point = slots[key].point;
-                return (
-                  <button
-                    key={key}
-                    onClick={() => setActive(key)}
-                    aria-pressed={active === key}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 7,
-                      padding: "6px 8px",
-                      border: `2px solid ${active === key ? SLOT_COLOR[key] : "#e2e2e2"}`,
-                      borderRadius: 6,
-                      background: "#fff",
-                      fontSize: 13,
-                      fontFamily: "inherit",
-                      color: point ? "#1a1a1a" : "#888",
-                      textAlign: "left",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <SlotBadge slotKey={key} />
-                    <span
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {point ? (point.label ?? "Pin on the map") : "Not set"}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p style={{ color: "#666", fontSize: 13, margin: "6px 0 10px" }}>
-              Click the map or search to place {active.toUpperCase()}.
-            </p>
-          </>
-        )}
+        {compare && <SlotPicker slots={slots} active={active} onSelect={setActive} />}
 
-        <form
-          onSubmit={search}
-          style={{ display: "flex", gap: 6, position: "relative" }}
-        >
-          <input
-            id="address"
-            value={query}
-            onChange={(e) => type(e.target.value)}
-            onKeyDown={onSearchKey}
-            onBlur={closeSuggestions}
-            // The browser's own history of past entries would open over the
-            // suggestions.
-            autoComplete="off"
-            role="combobox"
-            aria-autocomplete="list"
-            aria-expanded={suggestions.length > 0}
-            aria-controls="address-suggestions"
-            aria-activedescendant={
-              highlighted >= 0 ? `address-suggestion-${highlighted}` : undefined
-            }
-            placeholder={
-              compare
-                ? `Search for place ${active.toUpperCase()}`
-                : "Street, suburb or place"
-            }
-            aria-label="Search for an address in Hamilton"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: "8px 10px",
-              fontSize: 14,
-              fontFamily: "inherit",
-              color: "inherit",
-              border: "1px solid #ccc",
-              borderRadius: 6,
-              background: "#fff",
-            }}
-          />
-          <button
-            type="submit"
-            disabled={!mapReady || searching || query.trim().length < 3}
-            style={{
-              flexShrink: 0,
-              background: "#2c5f6f",
-              color: "#fff",
-              border: "none",
-              borderRadius: 6,
-              padding: "8px 14px",
-              fontSize: 14,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              opacity: !mapReady || searching || query.trim().length < 3 ? 0.45 : 1,
-            }}
-          >
-            {searching ? "…" : "Search"}
-          </button>
-
-          {suggestions.length > 0 && (
-            <ul
-              id="address-suggestions"
-              role="listbox"
-              aria-label="Suggestions"
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                zIndex: 5,
-                listStyle: "none",
-                margin: "4px 0 0",
-                padding: "4px 0",
-                background: "#fff",
-                border: "1px solid #ccc",
-                borderRadius: 6,
-                boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
-              }}
-            >
-              {suggestions.map((s, i) => (
-                <li
-                  key={`${s.kind}|${s.label}|${s.context}`}
-                  id={`address-suggestion-${i}`}
-                  role="option"
-                  aria-selected={i === highlighted}
-                  // mousedown, not click: click comes after the input's blur,
-                  // which has closed the list by then.
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    pick(s);
-                  }}
-                  onMouseEnter={() => setHighlighted(i)}
-                  style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: 8,
-                    padding: "7px 10px",
-                    fontSize: 13.5,
-                    cursor: "pointer",
-                    background: i === highlighted ? "#eef5f7" : "none",
-                  }}
-                >
-                  <span
-                    style={{
-                      minWidth: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {s.label}
-                  </span>
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      marginLeft: "auto",
-                      color: "#888",
-                      fontSize: 12,
-                    }}
-                  >
-                    {suggestionKind(s)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </form>
-
-        {searchNote && (
-          <p style={{ color: "#666", fontSize: 13, marginTop: 8 }}>
-            {searchNote}
-          </p>
-        )}
-
-        {choices && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{ color: "#666", fontSize: 13, marginBottom: 4 }}>
-              Which one?
-            </div>
-            {choices.map((c) => (
-              <button
-                key={c.label}
-                onClick={() => choose(c)}
-                style={{
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  background: "none",
-                  border: "none",
-                  borderTop: "1px solid #eee",
-                  padding: "7px 0",
-                  fontSize: 13.5,
-                  fontFamily: "inherit",
-                  color: "#2c5f6f",
-                  cursor: "pointer",
-                }}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <SearchBox
+          search={search}
+          mapReady={map.ready}
+          placeholder={
+            compare ? `Search for place ${active.toUpperCase()}` : "Street, suburb or place"
+          }
+        />
 
         {(slots.a.point || slots.b.point) && (
-          <button
-            onClick={startOver}
-            style={{
-              display: "block",
-              marginTop: 8,
-              marginLeft: "auto",
-              background: "none",
-              border: "none",
-              padding: 0,
-              color: "#2c5f6f",
-              fontSize: 13,
-              fontFamily: "inherit",
-              cursor: "pointer",
-            }}
-          >
+          <button onClick={startOver} className={`${ui.link} ${styles.startOver}`}>
             Start over
           </button>
         )}
 
-        <div style={{ height: 20 }} />
+        <div className={styles.spacer} />
 
         {!compare && !result && !loading && (
-          <div>
-            <p style={{ fontWeight: 600, marginBottom: 10 }}>
-              How much of everyday life is within a short walk?
-            </p>
-            <p style={{ marginBottom: 10 }}>
-              Search an address above, or click any point on the map.
-              WalkReach traces how far you can actually walk from there in 5,
-              10 and 15 minutes, then scores how close the nearest supermarket,
-              clinic, school, park and bus stop are.
-            </p>
-            <p style={{ color: "#666", marginBottom: 18 }}>
-              Distances follow the real street and footpath network, not
-              straight lines — so the Waikato River and other barriers count.
-            </p>
-            <button
-              onClick={tryCityCentre}
-              disabled={!mapReady}
-              style={{
-                background: "#2c5f6f",
-                color: "#fff",
-                border: "none",
-                borderRadius: 6,
-                padding: "10px 16px",
-                fontSize: 14,
-                cursor: mapReady ? "pointer" : "wait",
-                fontFamily: "inherit",
-                opacity: mapReady ? 1 : 0.6,
-              }}
-            >
-              Try the city centre
-            </button>
-          </div>
+          <Intro mapReady={map.ready} onTry={tryCityCentre} />
         )}
 
-        {!compare && loading && (
-          <p style={{ color: "#666" }}>Calculating…</p>
-        )}
+        {!compare && loading && <p className={styles.status}>Calculating…</p>}
 
         {!compare && offNetwork && (
-          <p style={{ color: "#a33" }}>
+          <p className={styles.offNetwork}>
             This location is outside the Hamilton walking network, so no
             catchment could be computed. Try a point inside the city.
           </p>
         )}
 
         {!compare && result && !offNetwork && (
-          <div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 14,
-                marginBottom: 10,
-              }}
-            >
-              <div
-                style={{
-                  flexShrink: 0,
-                  border: "1px solid #cfdde2",
-                  borderRadius: 6,
-                  background: "#f2f8fa",
-                  padding: "5px 10px 7px",
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 9,
-                    letterSpacing: "0.07em",
-                    textTransform: "uppercase",
-                    color: "#6b8a94",
-                  }}
-                >
-                  out of 100
-                </div>
-                <div
-                  style={{
-                    fontSize: 30,
-                    fontWeight: "bold",
-                    color: "#2c5f6f",
-                    lineHeight: 1.1,
-                  }}
-                >
-                  {result.total_score}
-                </div>
-              </div>
-              <div style={{ paddingTop: 2 }}>
-                <div style={{ fontSize: 19, fontWeight: 600, lineHeight: 1.25 }}>
-                  {scoreBand(result.total_score).label}
-                </div>
-                <div style={{ color: "#666", marginTop: 3 }}>
-                  {scoreBand(result.total_score).blurb}
-                </div>
-              </div>
-            </div>
-
-            <ReachCounts amenities={result.amenities} />
-
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.09em",
-                textTransform: "uppercase",
-                color: "#888",
-                marginTop: 22,
-                marginBottom: 4,
-              }}
-            >
-              Nearest of each
-            </div>
-
-            {result.breakdown.map((b) => {
-              const reached = result.amenities.filter(
-                (a) => a.category === b.category,
-              );
-              const open = openCategory === b.category;
-              return (
-                <div key={b.category} style={{ borderTop: "1px solid #eee" }}>
-                  <button
-                    onClick={() => setOpenCategory(open ? null : b.category)}
-                    disabled={reached.length === 0}
-                    aria-expanded={reached.length > 0 ? open : undefined}
-                    style={{
-                      display: "flex",
-                      width: "100%",
-                      justifyContent: "space-between",
-                      alignItems: "baseline",
-                      gap: 12,
-                      padding: "9px 0",
-                      background: "none",
-                      border: "none",
-                      textAlign: "left",
-                      font: "inherit",
-                      color: "inherit",
-                      cursor: reached.length > 0 ? "pointer" : "default",
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontWeight: 500 }}>
-                        {CATEGORY_LABEL[b.category] ?? b.category}
-                        {reached.length > 0 && (
-                          <span
-                            style={{ color: "#2c5f6f", fontWeight: 400, fontSize: 13 }}
-                          >
-                            {" "}
-                            {open ? "▾" : "▸"} {reached.length} within 15 min
-                          </span>
-                        )}
-                      </div>
-                      {b.nearest_m === null ? (
-                        <div style={{ color: "#666", fontSize: 13 }}>
-                          None within a 15 minute walk
-                        </div>
-                      ) : (
-                        // The distance is the measurement and the name is
-                        // context, so a long name truncates rather than pushing
-                        // the metres onto a line of their own.
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: 5,
-                            color: "#666",
-                            fontSize: 13,
-                          }}
-                        >
-                          <span
-                            style={{
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {amenityName({ name: b.nearest_name, category: b.category })}
-                          </span>
-                          <span style={{ flexShrink: 0 }}>
-                            · {b.nearest_m} m walk
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        flexShrink: 0,
-                        fontWeight: 500,
-                        color: b.nearest_m === null ? "#aaa" : "#1a1a1a",
-                      }}
-                    >
-                      {b.weighted_score}
-                      <span style={{ color: "#aaa", fontWeight: 400 }}>
-                        {" "}
-                        / {b.max_score}
-                      </span>
-                    </div>
-                  </button>
-
-                  {open && (
-                    <ReachList
-                      category={b.category}
-                      amenities={reached}
-                      selected={selected}
-                      onPick={showRoute}
-                    />
-                  )}
-                </div>
-              );
-            })}
-
-            <p style={{ color: "#888", fontSize: 12.5, marginTop: 14 }}>
-              Each category scores by how close its nearest one is on foot, up
-              to its own maximum. Distances follow the street network. Open a
-              category to see everything of that kind within reach, and pick
-              one to see the walk there.
-            </p>
-          </div>
+          <ScoreCard
+            result={result}
+            openCategory={openCategory}
+            onToggleCategory={(c) => setOpenCategory(openCategory === c ? null : c)}
+            selected={route.selected}
+            onPick={(amenity) => slots.a.point && route.toggle(slots.a.point, amenity)}
+          />
         )}
 
-        {compare && <CompareResults a={slots.a} b={slots.b} />}
+        {compare && <ComparePanel a={slots.a} b={slots.b} />}
 
-        <div style={{ marginTop: 26, fontSize: 13, color: "#666" }}>
-          {compare ? (
-            <>
-              <div style={{ marginBottom: 6 }}>15 minute walk from each place</div>
-              {(["a", "b"] as const).map((key) => (
-                <div
-                  key={key}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "2px 0",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 14,
-                      height: 14,
-                      background: SLOT_COLOR[key],
-                      opacity: COMPARE_OPACITY,
-                      border: "1px solid #fff",
-                      outline: "1px solid #ddd",
-                    }}
-                  />
-                  Place {key.toUpperCase()}
-                </div>
-              ))}
-            </>
-          ) : (
-            <>
-              <div style={{ marginBottom: 6 }}>Walking time from the pin</div>
-              {BANDS.map((band) => (
-                <div
-                  key={band.minutes}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "2px 0",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 14,
-                      height: 14,
-                      background: band.color,
-                      opacity: band.opacity,
-                      border: "1px solid #fff",
-                      outline: "1px solid #ddd",
-                    }}
-                  />
-                  {band.minutes} minutes
-                </div>
-              ))}
-            </>
-          )}
-        </div>
+        <Legend compare={compare} />
       </aside>
-    </div>
-  );
-}
-
-// How many of each kind are within 5, 10 and 15 minutes. Cumulative, like the
-// bands: whatever is within 5 minutes is within 10 as well.
-function ReachCounts({ amenities }: { amenities: Reached[] }) {
-  const minutes = BANDS.map((b) => b.minutes);
-  const cell = { textAlign: "right" as const, fontVariantNumeric: "tabular-nums" };
-  return (
-    <table
-      aria-label="Amenities within 5, 10 and 15 minutes"
-      style={{
-        width: "100%",
-        borderCollapse: "collapse",
-        marginTop: 22,
-        fontSize: 13.5,
-      }}
-    >
-      <thead>
-        <tr
-          style={{
-            fontSize: 11,
-            letterSpacing: "0.09em",
-            textTransform: "uppercase",
-            color: "#888",
-          }}
-        >
-          <th style={{ textAlign: "left", fontWeight: 400, paddingBottom: 4 }}>
-            Within reach
-          </th>
-          {minutes.map((m) => (
-            <th key={m} style={{ ...cell, fontWeight: 400, paddingBottom: 4 }}>
-              {m} min
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {Object.keys(CATEGORY_LABEL).map((category) => {
-          const ofKind = amenities.filter((a) => a.category === category);
-          return (
-            <tr key={category} style={{ borderTop: "1px solid #eee" }}>
-              <td style={{ padding: "5px 0" }}>{CATEGORY_LABEL[category]}</td>
-              {minutes.map((m) => {
-                const n = ofKind.filter((a) => withinMinutes(a.walk_m, m)).length;
-                return (
-                  <td key={m} style={{ ...cell, color: n === 0 ? "#bbb" : "#1a1a1a" }}>
-                    {n}
-                  </td>
-                );
-              })}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-}
-
-function ReachList({
-  category,
-  amenities,
-  selected,
-  onPick,
-}: {
-  category: string;
-  amenities: Reached[];
-  selected: number | null;
-  onPick: (a: Reached) => void;
-}) {
-  return (
-    <ul
-      aria-label={`${CATEGORY_LABEL[category] ?? category} within 15 minutes`}
-      style={{
-        listStyle: "none",
-        margin: "0 0 8px",
-        padding: 0,
-        // A city-centre walk reaches dozens of bus stops.
-        maxHeight: 264,
-        overflowY: "auto",
-      }}
-    >
-      {amenities.map((a) => {
-        const on = selected === a.id;
-        return (
-          <li key={a.id}>
-            <button
-              onClick={() => onPick(a)}
-              aria-pressed={on}
-              style={{
-                display: "flex",
-                width: "100%",
-                gap: 8,
-                padding: "6px 8px",
-                border: "none",
-                borderLeft: `3px solid ${on ? ROUTE_COLOR : "transparent"}`,
-                background: on ? "#fdf1ea" : "none",
-                textAlign: "left",
-                font: "inherit",
-                fontSize: 13,
-                color: "#1a1a1a",
-                cursor: "pointer",
-              }}
-            >
-              <span
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {amenityName(a)}
-              </span>
-              <span style={{ flexShrink: 0, color: "#666" }}>
-                {a.walk_m} m · {walkMinutes(a.walk_m)} min
-              </span>
-            </button>
-          </li>
-        );
-      })}
-      {selected !== null && amenities.some((a) => a.id === selected) && (
-        <li style={{ color: "#888", fontSize: 12, padding: "6px 8px 0" }}>
-          The walk is drawn on the map. Its dashed ends, onto the network and
-          off it to the amenity, are not counted in the distance.
-        </li>
-      )}
-    </ul>
-  );
-}
-
-function SlotBadge({ slotKey }: { slotKey: SlotKey }) {
-  return (
-    <span
-      style={{
-        flexShrink: 0,
-        width: 18,
-        height: 18,
-        borderRadius: "50%",
-        background: SLOT_COLOR[slotKey],
-        color: "#fff",
-        fontSize: 11,
-        fontWeight: 700,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {slotKey.toUpperCase()}
-    </span>
-  );
-}
-
-function CompareResults({ a, b }: { a: Slot; b: Slot }) {
-  const usable = (slot: Slot) =>
-    slot.result && !isOffNetwork(slot.result) ? slot.result : null;
-  const results = { a: usable(a), b: usable(b) };
-  const categories = (results.a ?? results.b)?.breakdown.map((r) => r.category);
-
-  const summary = (key: SlotKey, slot: Slot) => {
-    const r = results[key];
-    return (
-      <div
-        style={{
-          minWidth: 0,
-          borderTop: `3px solid ${SLOT_COLOR[key]}`,
-          paddingTop: 8,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 13,
-            color: "#555",
-            marginBottom: 4,
-          }}
-        >
-          <SlotBadge slotKey={key} />
-          Place {key.toUpperCase()}
-        </div>
-        {!slot.point ? (
-          <div style={{ color: "#888" }}>Not set yet</div>
-        ) : slot.loading ? (
-          <div style={{ color: "#666" }}>Calculating…</div>
-        ) : !slot.result ? (
-          <div style={{ color: "#a33" }}>Could not score this point.</div>
-        ) : !r ? (
-          <div style={{ color: "#a33" }}>Outside the walking network.</div>
-        ) : (
-          <>
-            <div
-              style={{
-                fontSize: 28,
-                fontWeight: "bold",
-                color: "#2c5f6f",
-                lineHeight: 1.1,
-              }}
-            >
-              {r.total_score}
-              <span style={{ fontSize: 13, fontWeight: 400, color: "#999" }}>
-                {" "}
-                / 100
-              </span>
-            </div>
-            <div style={{ fontWeight: 600, lineHeight: 1.3, marginTop: 3 }}>
-              {scoreBand(r.total_score).label}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  };
-
-  // Bold marks the closer of the two, so it is only drawn when both places
-  // have an answer for that category to be closer than.
-  const cell = (row?: Breakdown, other?: Breakdown) => {
-    if (!row) return <div style={{ color: "#bbb" }}>—</div>;
-    const closer =
-      !!other &&
-      row.nearest_m !== null &&
-      (other.nearest_m === null || row.nearest_m < other.nearest_m);
-    return (
-      <div style={{ minWidth: 0 }} title={row.nearest_name ?? undefined}>
-        <div
-          style={{
-            fontWeight: closer ? 700 : 400,
-            color: row.nearest_m === null ? "#999" : "#1a1a1a",
-          }}
-        >
-          {row.nearest_m === null ? "None" : `${row.nearest_m} m`}
-        </div>
-        <div
-          style={{
-            color: "#888",
-            fontSize: 12,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {row.nearest_m === null
-            ? "within 15 min"
-            : (row.nearest_name ?? "Unnamed")}
-        </div>
-      </div>
-    );
-  };
-
-  const gap =
-    results.a && results.b
-      ? Math.round((results.a.total_score - results.b.total_score) * 10) / 10
-      : null;
-
-  return (
-    <div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-        }}
-      >
-        {summary("a", a)}
-        {summary("b", b)}
-      </div>
-
-      {gap !== null && (
-        <p style={{ color: "#666", marginTop: 10 }}>
-          {gap === 0
-            ? "Both places score the same."
-            : `Place ${gap > 0 ? "A" : "B"} scores ${Math.abs(gap)} higher.`}
-        </p>
-      )}
-
-      {categories && (
-        <>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr) 96px 96px",
-              gap: 10,
-              alignItems: "center",
-              marginTop: 22,
-              marginBottom: 4,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                letterSpacing: "0.09em",
-                textTransform: "uppercase",
-                color: "#888",
-              }}
-            >
-              Nearest of each
-            </div>
-            <SlotBadge slotKey="a" />
-            <SlotBadge slotKey="b" />
-          </div>
-
-          {categories.map((category) => {
-            const rowA = results.a?.breakdown.find((r) => r.category === category);
-            const rowB = results.b?.breakdown.find((r) => r.category === category);
-            return (
-              <div
-                key={category}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "minmax(0, 1fr) 96px 96px",
-                  gap: 10,
-                  alignItems: "baseline",
-                  padding: "9px 0",
-                  borderTop: "1px solid #eee",
-                }}
-              >
-                <div style={{ fontWeight: 500 }}>
-                  {CATEGORY_LABEL[category] ?? category}
-                </div>
-                {cell(rowA, rowB)}
-                {cell(rowB, rowA)}
-              </div>
-            );
-          })}
-
-          <p style={{ color: "#888", fontSize: 12.5, marginTop: 14 }}>
-            Walking distance along the street network. Bold marks whichever of
-            the two is closer.
-          </p>
-        </>
-      )}
     </div>
   );
 }

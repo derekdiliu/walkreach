@@ -49,9 +49,9 @@ a {
   }
 }
 
-/* Layout lives here rather than inline because it is the one part of the page
-   that has to answer to viewport width, and inline styles cannot hold a media
-   query. Everything else in page.tsx stays inline. */
+/* The page layout lives here because it is shared by the map pane and the
+   panel and has to answer to viewport width. Each component's own styles are
+   in a CSS module beside it in app/_components. */
 
 .site-nav {
   height: var(--nav-height);
@@ -163,14 +163,6 @@ a {
     border-left: none;
     border-top: 1px solid #e2e2e2;
     padding: 20px 18px 32px;
-  }
-
-  .welcome-card {
-    padding: 22px 20px 0 !important;
-  }
-
-  .welcome-actions {
-    padding-bottom: 22px !important;
   }
 }
 

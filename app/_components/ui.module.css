@@ -1,0 +1,41 @@
+/* Pieces more than one component uses. Variants sit after their base here,
+   so where they override it, they win by order within this one file. */
+
+.primary {
+  background: #2c5f6f;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* The two buttons that place the example point wait for the map. */
+.example:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.link {
+  background: none;
+  border: none;
+  color: #2c5f6f;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* One line, cut off with an ellipsis rather than wrapping. */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The small uppercase label over a list or table. */
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #888;
+}

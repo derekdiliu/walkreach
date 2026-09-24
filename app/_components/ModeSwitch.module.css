@@ -1,0 +1,23 @@
+.group {
+  display: flex;
+  border: 1px solid #2c5f6f;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.option {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  background: #fff;
+  color: #2c5f6f;
+  font-size: 13.5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.option[aria-pressed="true"] {
+  background: #2c5f6f;
+  color: #fff;
+}

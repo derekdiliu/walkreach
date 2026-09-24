@@ -1,0 +1,86 @@
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 30, 35, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  /* let clicks fall through to the map: the card says to click it */
+  pointer-events: none;
+  /* above MapLibre's controls, which sit at z-index 2 */
+  z-index: 3;
+}
+
+.card {
+  pointer-events: auto;
+  background: #ffffff;
+  color: #1a1a1a;
+  border-radius: 12px;
+  /* no bottom padding: the pinned buttons carry it, so nothing shows
+     through below them as the card scrolls */
+  padding: 32px 34px 0;
+  max-width: 460px;
+  /* A phone gives the map about half the screen, less than the card needs:
+     scroll inside it rather than spill over the top bar and the panel. */
+  max-height: 100%;
+  overflow-y: auto;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
+  line-height: 1.55;
+}
+
+.title {
+  font-size: 26px;
+  margin-bottom: 8px;
+}
+
+.lede {
+  font-size: 17px;
+  margin-bottom: 14px;
+}
+
+.method {
+  color: #555;
+  margin-bottom: 20px;
+}
+
+.steps {
+  margin: 0 0 12px 0;
+  padding-left: 20px;
+  color: #444;
+  font-size: 14px;
+}
+
+.steps li:not(:last-child) {
+  margin-bottom: 6px;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  /* pinned, so the way in is on screen before any scrolling */
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  padding: 12px 0 32px;
+}
+
+.example {
+  padding: 11px 18px;
+}
+
+.dismiss {
+  padding: 11px 6px;
+  font-size: 14px;
+}
+
+@media (max-width: 760px) {
+  .card {
+    padding: 22px 20px 0;
+  }
+
+  .actions {
+    padding-bottom: 22px;
+  }
+}

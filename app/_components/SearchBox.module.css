@@ -1,0 +1,95 @@
+.form {
+  display: flex;
+  gap: 6px;
+  position: relative;
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: inherit;
+  color: inherit;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.submit {
+  flex-shrink: 0;
+  padding: 8px 14px;
+}
+
+.submit:disabled {
+  opacity: 0.45;
+}
+
+.suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 4px 0;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.suggestion {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.suggestion[aria-selected="true"] {
+  background: #eef5f7;
+}
+
+.label {
+  min-width: 0;
+}
+
+.kind {
+  flex-shrink: 0;
+  margin-left: auto;
+  color: #888;
+  font-size: 12px;
+}
+
+.note {
+  color: #666;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.choices {
+  margin-top: 8px;
+}
+
+.which {
+  color: #666;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.choice {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid #eee;
+  padding: 7px 0;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: #2c5f6f;
+  cursor: pointer;
+}

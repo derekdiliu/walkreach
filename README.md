@@ -265,7 +265,15 @@ docker compose pull app && docker compose up -d app
 
 ```
 app/
-  page.tsx                     map, side panel, onboarding card, compare mode
+  page.tsx                     the map page: state, and wiring the parts below
+  _lib/walkreach.ts            API types, constants and pure helpers
+  _lib/map-style.ts            MapLibre sources and layers
+  _components/                 not routable (the _ prefix); each with a CSS module
+    use-walk-map.ts            the map, its pins and GeoJSON sources
+    use-walk-route.ts          the walk to a picked amenity
+    use-address-search.ts      suggestions, Nominatim lookup, "which one?"
+    WelcomeCard, ModeSwitch, SlotPicker, SearchBox, Intro,
+    ScoreCard, ComparePanel, Legend, SlotBadge
   layout.tsx
   site-nav.tsx                 top bar
   how-it-works/page.tsx        method, weights and limitations for readers
