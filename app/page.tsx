@@ -525,6 +525,11 @@ export default function Home() {
     window.history.replaceState(null, "", window.location.pathname);
   };
 
+  // Everything that places a point waits for the map: before it exists there
+  // is no Marker to put down and no source to draw the walk into. On a slow
+  // connection MapLibre arrives well after the buttons do, and a click in
+  // between threw instead of scoring, so those buttons stay disabled until
+  // mapReady.
   const tryCityCentre = () => {
     mapRef.current?.flyTo({ center: CITY_CENTRE, zoom: 14 });
     setPoint(CITY_CENTRE[0], CITY_CENTRE[1], null);
@@ -653,6 +658,7 @@ export default function Home() {
               >
                 <button
                   onClick={tryCityCentre}
+                  disabled={!mapReady}
                   style={{
                     background: "#2c5f6f",
                     color: "#fff",
@@ -660,8 +666,9 @@ export default function Home() {
                     borderRadius: 6,
                     padding: "11px 18px",
                     fontSize: 14,
-                    cursor: "pointer",
+                    cursor: mapReady ? "pointer" : "wait",
                     fontFamily: "inherit",
+                    opacity: mapReady ? 1 : 0.6,
                   }}
                 >
                   Show me an example
@@ -790,7 +797,7 @@ export default function Home() {
           />
           <button
             type="submit"
-            disabled={searching || query.trim().length < 3}
+            disabled={!mapReady || searching || query.trim().length < 3}
             style={{
               flexShrink: 0,
               background: "#2c5f6f",
@@ -801,7 +808,7 @@ export default function Home() {
               fontSize: 14,
               fontFamily: "inherit",
               cursor: "pointer",
-              opacity: searching || query.trim().length < 3 ? 0.45 : 1,
+              opacity: !mapReady || searching || query.trim().length < 3 ? 0.45 : 1,
             }}
           >
             {searching ? "…" : "Search"}
@@ -882,6 +889,7 @@ export default function Home() {
             </p>
             <button
               onClick={tryCityCentre}
+              disabled={!mapReady}
               style={{
                 background: "#2c5f6f",
                 color: "#fff",
@@ -889,8 +897,9 @@ export default function Home() {
                 borderRadius: 6,
                 padding: "10px 16px",
                 fontSize: 14,
-                cursor: "pointer",
+                cursor: mapReady ? "pointer" : "wait",
                 fontFamily: "inherit",
+                opacity: mapReady ? 1 : 0.6,
               }}
             >
               Try the city centre

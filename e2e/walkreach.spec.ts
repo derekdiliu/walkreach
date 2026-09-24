@@ -40,6 +40,30 @@ test("the welcome card explains the tool and its example scores the CBD", async 
   await expectNoSidewaysScroll(page);
 });
 
+test("the example waits for a slow map rather than failing", async ({ page }) => {
+  // MapLibre is imported once the page is up, so hold back every script
+  // requested after load: on the live site it arrives about a second after
+  // the buttons, and a click in that gap used to throw.
+  let loaded = false;
+  page.on("load", () => (loaded = true));
+  await page.route("**/_next/static/chunks/**", async (route) => {
+    if (loaded) await new Promise((r) => setTimeout(r, 3000));
+    await route.continue();
+  });
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+
+  await page.goto("/");
+  const example = page.getByRole("button", { name: "Show me an example" });
+  await expect(example).toBeDisabled();
+
+  const response = analysisResponse(page);
+  await example.click();
+  await expectBands(page, await response);
+  await expect(page.getByText("out of 100")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("clicking the map scores the point clicked", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Pick a spot myself" }).click();
