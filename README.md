@@ -238,6 +238,19 @@ The MapLibre worker is copied into `public/maplibre/` by a `predev` /
 reliably via a named dynamic import inside `useEffect` with the worker served
 from `public/`.
 
+### 4. Tests
+
+```bash
+npm test              # unit: API routes and helpers, database mocked
+npm run test:db       # database: the SQL against the imported data
+npm run test:e2e      # end-to-end in Chromium, desktop and phone size
+npm run perf          # query timings
+```
+
+[`docs/QA.md`](docs/QA.md) records a full run with its output, the
+security testing and the known gaps; [`docs/BUGS.md`](docs/BUGS.md) logs
+every defect fixed and the test that guards it.
+
 ## Deploying
 
 `deploy/` runs the whole thing on one small Linux VM: Postgres with pgRouting,
@@ -302,9 +315,13 @@ sql/
   01-amenities.sql             categorised amenities table
   02-amenity-nodes.sql         precomputed amenity → node pairs
   03-walkreach-analysis.sql    walkreach_analysis(lng, lat), walkreach_route(...)
-  04-livability-score.sql      superseded scorer, kept for the report
+  04-livability-score.sql      superseded scorer and isochrone, the perf baseline
   05-search-names.sql          names to suggest in the address search
   06-walkreach-suggest.sql     walkreach_suggest(text, n)
+docs/
+  QA.md                        test results, security testing, known gaps
+  BUGS.md                      every defect fixed and its regression test
+  qa/<date>/                   raw output of each recorded run
 initdb/
   01-extensions.sql            run once on first container start
 docker-compose.yml             PostGIS + pgRouting on :5433, for development

@@ -1,0 +1,27 @@
+
+## walkreach_analysis — warm database, 5 runs per point
+
+| Point | First run | Median of the rest | Slowest of the rest |
+|---|---|---|---|
+| CBD | 1.55 s | 662 ms | 679 ms |
+| CBD edge | 503 ms | 490 ms | 507 ms |
+| North-west | 1.44 s | 1.45 s | 1.46 s |
+| Hamilton East | 516 ms | 448 ms | 471 ms |
+| South | 346 ms | 327 ms | 335 ms |
+
+Median over all repeat runs: 490 ms
+
+## Superseded pair vs walkreach_analysis (median per point)
+
+Old: livability_score() + get_isochrone(), two traversals, amenities joined to
+reached nodes per request. New: one traversal over precomputed amenity_nodes.
+Not like-for-like on the score (see sql/04-livability-score.sql): the timing
+shows both changes together.
+
+| Point | Old | New | Speed-up |
+|---|---|---|---|
+| CBD | 6.39 s | 672 ms | 9.5× |
+| CBD edge | 5.55 s | 487 ms | 11.4× |
+| North-west | 2.74 s | 1.46 s | 1.9× |
+| Hamilton East | 2.35 s | 465 ms | 5.0× |
+| South | 2.05 s | 333 ms | 6.2× |

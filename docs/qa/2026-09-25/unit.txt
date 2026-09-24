@@ -1,0 +1,88 @@
+
+ RUN  v5.0.1 .
+
+ ✓ tests/unit/walkreach-lib.test.ts > walking time > turns metres into minutes at 1250 m to 15 minutes, never under 1 1ms
+ ✓ tests/unit/walkreach-lib.test.ts > walking time > counts a walk as within a band up to and including its edge 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > score bands > names 100 Everything close by 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > score bands > names 80 Everything close by 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > score bands > names 79.9 Mostly walkable 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > score bands > names 40 Some essentials nearby 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > score bands > names 20 Limited on foot 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > score bands > names 0 Car-dependent 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > names > falls back to the kind for an amenity with no name 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > names > describes a suggestion by its kind and suburb 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > points in the address bar > round-trips a point at five decimal places 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > points in the address bar > reads null as no point 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > points in the address bar > reads "" as no point 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > points in the address bar > reads "175.28" as no point 0ms
+ ✓ tests/unit/walkreach-lib.test.ts > points in the address bar > reads "abc,def" as no point 0ms
+ ✓ tests/unit/geocode-route.test.ts > GET /api/geocode > rejects "" as too short without calling Nominatim 3ms
+ ✓ tests/unit/geocode-route.test.ts > GET /api/geocode > rejects "ab" as too short without calling Nominatim 0ms
+ ✓ tests/unit/geocode-route.test.ts > GET /api/geocode > rejects "  ab  " as too short without calling Nominatim 0ms
+ ✓ tests/unit/geocode-route.test.ts > GET /api/geocode > asks Nominatim for NZ results bounded to the routable Hamilton box 1ms
+ ✓ tests/unit/geocode-route.test.ts > GET /api/geocode > shortens labels to three parts and parses coordinates as numbers 1ms
+ ✓ tests/unit/geocode-route.test.ts > GET /api/geocode > drops a repeated label, keeping the first 0ms
+ ✓ tests/unit/geocode-route.test.ts > GET /api/geocode > answers 502 when Nominatim returns an error status 0ms
+ ✓ tests/unit/geocode-route.test.ts > GET /api/geocode > answers 502 when Nominatim cannot be reached 0ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > rejects one character with 400 and never queries 3ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > rejects only spaces with 400 and never queries 0ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > rejects over 100 characters with 400 and never queries 0ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > passes the trimmed text as a bind parameter 1ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > gives a place or an amenity its point, and a street none 1ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > keeps the house number of 13 Huk on streets only 0ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > keeps the house number of 13D Huk on streets only 0ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > keeps the house number of 2/17 Huk on streets only 0ms
+ ✓ tests/unit/suggest-route.test.ts > GET /api/suggest > answers 500 without leaking the database error 1ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects no parameters with 400 and never queries 3ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects amenity missing with 400 and never queries 1ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects non-numeric amenity with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects fractional amenity with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects zero amenity with 400 and never queries 1ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects lat missing with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects negative amenity with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects amenity with trailing junk with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects amenity in hexadecimal with 400 and never queries 1ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects amenity in exponent form with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects amenity padded with spaces with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects amenity past a Postgres integer with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects amenity given twice with 400 and never queries 1ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects latitude past the pole with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > rejects lng with trailing junk with 400 and never queries 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > passes the point and the amenity as bind parameters 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > accepts the largest id a Postgres integer holds 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > returns the route and nothing else the function returns 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > answers 404 when the amenity is out of reach 0ms
+ ✓ tests/unit/route-route.test.ts > GET /api/route > answers 500 without leaking the database error 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects no parameters with 400 and never queries 3ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects lat missing with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects lng missing with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects non-numeric lng with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects empty values with 400 and never queries 1ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects trailing junk after lng with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects trailing junk after lat with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects a second number glued on with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects whitespace with 400 and never queries 1ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects hexadecimal with 400 and never queries 1ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects Infinity with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects NaN spelled out with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects latitude past the pole with 400 and never queries 1ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects latitude just past the pole with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects longitude past the antimeridian with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects longitude in exponent form, out of range with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects lng given twice with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects a script in place of a number with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > rejects SQL in place of a number with 400 and never queries 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > passes the coordinates as bind parameters, lng first 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > accepts the edges of the globe 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > accepts a leading plus and no integer part 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > accepts exponent form in range 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > accepts a point in Auckland 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > returns the analysis with the location it was asked about 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > does not pass through anything else the function returns 0ms
+ ✓ tests/unit/livability-route.test.ts > GET /api/livability > answers 500 without leaking the database error 0ms
+
+ Test Files  5 passed (5)
+      Tests  79 passed (79)
+   Start at  00:12:14
+   Duration  148ms (transform 47%, import 38%, tests 11%, worker 3%)
+
