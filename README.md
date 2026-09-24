@@ -180,10 +180,21 @@ Everything in the database is rebuilt from an OpenStreetMap extract by one
 script. It needs `osmium`, `osm2pgrouting` and `ogr2ogr` (GDAL) on your PATH,
 and a New Zealand `.osm.pbf` from [Geofabrik](https://download.geofabrik.de/australia-oceania/new-zealand.html)
 in `../data` (outside the repo — the extracts are 380 MB+ and are not
-committed). Point `NZ_PBF` at your download, then:
+committed). The newest `new-zealand-*.osm.pbf` there is used, and
+osm2pgrouting's pedestrian profile is found wherever it was installed. Then:
 
 ```bash
 ./sql/00-import.sh
+```
+
+Every setting can be overridden from the environment: `NZ_PBF` for the
+extract, `PEDCONF` for the profile, `DATA_DIR`, and `PG_HOST`, `PG_PORT`,
+`PG_DB`, `PG_USER`, `PG_PASS` for the database. The script creates the
+extensions it needs, so it also builds into an empty database:
+
+```bash
+docker exec walkreach-db psql -U walkreach -c "CREATE DATABASE walkreach_rebuild"
+PG_DB=walkreach_rebuild ./sql/00-import.sh
 ```
 
 It clips Hamilton out of the NZ extract, builds the routable network, filters
@@ -197,9 +208,14 @@ functions — then prints counts to check against a known-good baseline.
 | `01-amenities.sql` | `amenities` — five categories, with polygon footprints | ~1,600 |
 | `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs | ~37,000 |
 | `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` and `walkreach_route(lng, lat, amenity)` — what the API calls | |
-| `04-livability-score.sql` | `livability_score(lng, lat)` — superseded, kept for comparison | |
+| `04-livability-score.sql` | `livability_score(lng, lat)` and `get_isochrone(lng, lat)` — superseded, kept as the "before" that `npm run perf` times | |
 | `05-search-names.sql` | `search_names` — suburbs, streets and named amenities for address suggestions | ~2,550 |
 | `06-walkreach-suggest.sql` | `walkreach_suggest(text, n)` — what the suggestions API calls | |
+
+Run into an empty database on 24 September 2026, the import reproduced the
+development database exactly: the same row counts in every table, the same
+scores, reach counts and routes at six test points, and all 96 database
+tests and `npm run perf` passing against it.
 
 The numbered SQL files are also safe to run on their own, in order, when you
 only need to rebuild part of it. `02` exists so that scoring is an equality
@@ -306,14 +322,17 @@ deploy/
 Current state as of the mid-trimester break — these are known and being worked
 on, not oversights:
 
-- The import script has been verified step by step against the existing
-  database, but not yet run end to end against an empty one.
-- 23 of 1,396 amenities still have no network node in range and are invisible
-  to scoring: 20 bus stops and 3 parks. The bus stops are points, so
-  footprint matching does not help them, and widening the radius past 100 m
-  stops being honest about what it is correcting for. The 3 parks are small
-  ones set back from any footpath — they were matched before only because
-  their centroid happened to fall near a node, which was luck, not reach.
+- 30 of 1,642 amenities still have no network node in range and are
+  invisible to scoring: 24 bus stops, 5 parks and a school. The bus stops are
+  points, so footprint matching does not help them, and widening the radius
+  past 100 m stops being honest about what it is correcting for. The parks
+  are small ones set back from any footpath; some were matched before only
+  because their centroid happened to fall near a node, which was luck, not
+  reach.
+- A walk starts at the nearest network node, not at the point itself, and
+  the stretch between them is not counted. Over 800 points sampled along
+  named streets by length it is 24 m at the median and under 89 m for nine
+  in ten, but a few hundred metres on a long road with few junctions.
 - Concave hull bands are one reasonable choice among several; buffer-and-union
   has not been compared yet.
 

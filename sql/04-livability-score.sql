@@ -1,5 +1,6 @@
--- SUPERSEDED by walkreach_analysis() in 03-walkreach-analysis.sql. Nothing in
--- the app calls this. It is kept, and rebuilt by 00-import.sh, only so the
+-- SUPERSEDED by walkreach_analysis() in 03-walkreach-analysis.sql, together
+-- with get_isochrone() at the end of this file. Nothing in the app calls
+-- either. It is kept, and rebuilt by 00-import.sh, only so the
 -- report can show the before/after: this version spatially joins amenities to
 -- reached nodes on every request (~6 s), where walkreach_analysis joins the
 -- precomputed amenity_nodes table (~0.4-2 s).
@@ -51,4 +52,35 @@ RETURNS TABLE(category text, weighted_score numeric) AS $$
         WHEN 'bus_stop' THEN 0.10 END * 100
     )::numeric, 1)
   FROM nearest;
+$$ LANGUAGE sql;
+
+-- Also SUPERSEDED, and kept for the same reason: livability_score() and this
+-- were the pair walkreach_analysis() replaced, each running its own network
+-- traversal, and scripts/perf.mts times that pair as the "before". This one
+-- was only ever created by hand in the development database, so a database
+-- built from these files lacked it and the timing script failed; it is
+-- recorded here as it was, recovered with pg_get_functiondef.
+CREATE OR REPLACE FUNCTION get_isochrone(input_lng float, input_lat float)
+RETURNS TABLE(minutes integer, geojson text) AS $$
+  WITH start AS (
+    SELECT id FROM ways_vertices_pgr
+    ORDER BY geom <-> ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)
+    LIMIT 1
+  ),
+  reach AS (
+    SELECT dd.agg_cost,
+      CASE WHEN dd.agg_cost <= 417 THEN 5
+           WHEN dd.agg_cost <= 833 THEN 10 ELSE 15 END AS minutes,
+      v.geom
+    FROM start, pgr_drivingDistance(
+      'SELECT id, source, target, length_m AS cost FROM ways',
+      (SELECT id FROM start), 1250, false
+    ) dd
+    JOIN ways_vertices_pgr v ON dd.node = v.id
+  )
+  SELECT m AS minutes,
+    ST_AsGeoJSON(ST_ConcaveHull(ST_Collect(geom), 0.8)) AS geojson
+  FROM reach, (VALUES (5),(10),(15)) AS t(m)
+  WHERE reach.agg_cost <= (m::float / 15.0 * 1250.0)
+  GROUP BY m;
 $$ LANGUAGE sql;

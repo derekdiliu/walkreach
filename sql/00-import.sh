@@ -14,8 +14,18 @@
 set -euo pipefail
 
 # ---- config ----
-DATA_DIR="$(cd "$(dirname "$0")/../../data" && pwd)"
-NZ_PBF="$DATA_DIR/new-zealand-260725.osm.pbf"   # whatever Geofabrik extract you downloaded
+# Everything here can be overridden from the environment, e.g.
+#   PG_DB=walkreach_rebuild NZ_PBF=~/Downloads/nz.osm.pbf ./sql/00-import.sh
+DATA_DIR="${DATA_DIR:-$(cd "$(dirname "$0")/../../data" && pwd)}"
+# The newest Geofabrik New Zealand extract in DATA_DIR, unless named.
+NZ_PBF="${NZ_PBF:-$(ls -t "$DATA_DIR"/new-zealand-*.osm.pbf 2>/dev/null | head -1)}"
+if [ -z "$NZ_PBF" ] || [ ! -f "$NZ_PBF" ]; then
+  echo "error: no New Zealand extract found. Download one into $DATA_DIR:" >&2
+  echo "  curl -Lo $DATA_DIR/new-zealand-latest.osm.pbf \\" >&2
+  echo "    https://download.geofabrik.de/australia-oceania/new-zealand-latest.osm.pbf" >&2
+  echo "or set NZ_PBF to the file." >&2
+  exit 1
+fi
 # Hamilton City's boundary (OSM relation "Hamilton City", admin_level 6)
 # spans 175.184-175.345, -37.846 to -37.699. The box is that plus about
 # 1.5 km each way: a point on the boundary walks up to 1250 m, and the
@@ -23,15 +33,19 @@ NZ_PBF="$DATA_DIR/new-zealand-260725.osm.pbf"   # whatever Geofabrik extract you
 # 175.20,-37.85,175.32,-37.73 left Rototuna North, Huntington, Ruakura and
 # Silverdale - 19% of the city - off the network.
 BBOX="175.16,-37.86,175.37,-37.68"
-PG_HOST="localhost"; PG_PORT="5433"
-PG_DB="walkreach"; PG_USER="walkreach"; PG_PASS="walkreach"
+PG_HOST="${PG_HOST:-localhost}"; PG_PORT="${PG_PORT:-5433}"
+PG_DB="${PG_DB:-walkreach}"; PG_USER="${PG_USER:-walkreach}"; PG_PASS="${PG_PASS:-walkreach}"
 PGURI="postgresql://$PG_USER:$PG_PASS@$PG_HOST:$PG_PORT/$PG_DB"
-# brew upgrades move this - check with:
-#   find /opt/homebrew -name mapconfig_for_pedestrian.xml
-PEDCONF="/opt/homebrew/Cellar/osm2pgrouting/3.0.0_2/share/osm2pgrouting/mapconfig_for_pedestrian.xml"
+# osm2pgrouting's own pedestrian profile. Its path moves with every Homebrew
+# upgrade and differs on Linux, so it is looked for rather than named.
+PEDCONF="${PEDCONF:-$(find /opt/homebrew /usr/local /usr/share -name mapconfig_for_pedestrian.xml 2>/dev/null | head -1)}"
+if [ -z "$PEDCONF" ] || [ ! -f "$PEDCONF" ]; then
+  echo "error: mapconfig_for_pedestrian.xml not found; install osm2pgrouting or set PEDCONF." >&2
+  exit 1
+fi
 
 SQL_DIR="$(cd "$(dirname "$0")" && pwd)"
-DB_CONTAINER="walkreach-db"
+DB_CONTAINER="${DB_CONTAINER:-walkreach-db}"
 
 # osmium/osm2pgrouting/ogr2ogr talk to the DB over TCP, but psql may not be
 # installed locally (it ships with the Postgres client, not with GDAL), so fall
@@ -44,6 +58,14 @@ else
   run_sql_file() { docker exec -i "$DB_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -v ON_ERROR_STOP=1 < "$1"; }
   run_sql()      { docker exec -i "$DB_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" "$@"; }
 fi
+
+echo "==> Using $NZ_PBF"
+echo "==>        and $PEDCONF"
+echo "==>        into $PG_DB on $PG_HOST:$PG_PORT"
+
+# initdb/ creates these in the database the container starts with; a
+# database created later, or on another server, starts without them.
+run_sql_file "$SQL_DIR/../initdb/01-extensions.sql"
 
 echo "==> 1/8  Clip Hamilton from the NZ extract"
 osmium extract --bbox "$BBOX" --set-bounds -o "$DATA_DIR/hamilton.osm.pbf" "$NZ_PBF" --overwrite
