@@ -143,6 +143,16 @@ than per keystroke, which that policy also requires. A query matching more
 than one place asks which one, since a street runs for kilometres and scores
 differently along its length.
 
+Suggestions while typing come from our own database instead, through
+`/api/suggest` and `walkreach_suggest(text, n)`: the 77 suburbs and
+localities OSM maps in Hamilton, every street name on the network, and the
+named supermarkets, clinics, schools and parks. Matching is by the start of
+the name or of any word in it, and from five characters on also by trigram
+similarity, so a typo still finds the street. A suburb or an amenity is gone
+to directly from its point; a street is handed to Nominatim, once, when it is
+picked. A leading house number (`13 Huk`) is kept and only streets are
+suggested for it.
+
 ## Tech stack
 
 - **PostgreSQL 17** + **PostGIS 3.5** + **pgRouting 3.7.3** — network storage,
@@ -188,6 +198,8 @@ functions — then prints counts to check against a known-good baseline.
 | `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs | ~37,000 |
 | `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` and `walkreach_route(lng, lat, amenity)` — what the API calls | |
 | `04-livability-score.sql` | `livability_score(lng, lat)` — superseded, kept for comparison | |
+| `05-search-names.sql` | `search_names` — suburbs, streets and named amenities for address suggestions | ~2,550 |
+| `06-walkreach-suggest.sql` | `walkreach_suggest(text, n)` — what the suggestions API calls | |
 
 The numbered SQL files are also safe to run on their own, in order, when you
 only need to rebuild part of it. `02` exists so that scoring is an equality
@@ -260,12 +272,15 @@ app/
   api/livability/route.ts      the scoring endpoint
   api/route/route.ts           the walk to one amenity
   api/geocode/route.ts         Nominatim proxy for address search
+  api/suggest/route.ts         address suggestions while typing
 sql/
   00-import.sh                 OSM → database, one shot
   01-amenities.sql             categorised amenities table
   02-amenity-nodes.sql         precomputed amenity → node pairs
   03-walkreach-analysis.sql    walkreach_analysis(lng, lat), walkreach_route(...)
   04-livability-score.sql      superseded scorer, kept for the report
+  05-search-names.sql          names to suggest in the address search
+  06-walkreach-suggest.sql     walkreach_suggest(text, n)
 initdb/
   01-extensions.sql            run once on first container start
 docker-compose.yml             PostGIS + pgRouting on :5433, for development

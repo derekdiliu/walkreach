@@ -17,6 +17,12 @@ type Reached = {
   walk_m: number;
 };
 type Place = { lng: number; lat: number; label: string };
+type Suggestion = {
+  label: string;
+  kind: string;
+  context: string | null;
+  point: LngLat | null;
+};
 type Result = {
   location: { lng: number; lat: number };
   total_score: number;
@@ -59,6 +65,13 @@ const withinMinutes = (m: number, minutes: number) => m <= (minutes / 15) * 1250
 
 const amenityName = (a: { name: string | null; category: string }) =>
   a.name ?? `Unnamed ${(CATEGORY_LABEL[a.category] ?? a.category).toLowerCase()}`;
+
+// "Area", "Street · Hamilton North", "Supermarket · Chartwell".
+const suggestionKind = (s: { kind: string; context: string | null }) => {
+  const kind =
+    s.kind === "place" ? "Area" : s.kind === "street" ? "Street" : (CATEGORY_LABEL[s.kind] ?? s.kind);
+  return s.context ? `${kind} · ${s.context}` : kind;
+};
 
 const isOffNetwork = (result: Result) => result.isochrone.features.length === 0;
 
@@ -118,6 +131,11 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [choices, setChoices] = useState<Place[] | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [highlighted, setHighlighted] = useState(-1);
+  const suggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // As requestRef: a slow answer for what was typed earlier is dropped.
+  const suggestRequestRef = useRef(0);
   const [searchNote, setSearchNote] = useState<string | null>(null);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -535,11 +553,74 @@ export default function Home() {
     setPoint(CITY_CENTRE[0], CITY_CENTRE[1], null);
   };
 
-  // Submit-only, no lookup per keystroke: Nominatim's usage policy rules out
-  // autocomplete, and the answer is worth a deliberate press anyway.
-  const search = async (e: React.FormEvent) => {
+  const closeSuggestions = () => {
+    if (suggestTimerRef.current) clearTimeout(suggestTimerRef.current);
+    suggestRequestRef.current++;
+    setSuggestions([]);
+    setHighlighted(-1);
+  };
+
+  // Suggestions come from our own names (/api/suggest), a short pause after
+  // each keystroke. Nominatim is not asked until a street is picked or the
+  // search submitted: its usage policy rules out a lookup per keystroke.
+  const type = (value: string) => {
+    setQuery(value);
+    closeSuggestions();
+    const q = value.trim();
+    if (q.length < 2) return;
+
+    const request = suggestRequestRef.current;
+    suggestTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+        const { suggestions } = (await res.json()) as { suggestions?: Suggestion[] };
+        if (request === suggestRequestRef.current) setSuggestions(suggestions ?? []);
+      } catch {
+        // No suggestions is fine: the search button still works.
+      }
+    }, 150);
+  };
+
+  // A place or an amenity comes with its point, so it is gone to straight
+  // away. A street does not - it runs for kilometres - so it is searched for
+  // as before, which asks which part of it when there is more than one.
+  const pick = (s: Suggestion) => {
+    closeSuggestions();
+    setQuery(s.label);
+    if (!mapReady) return;
+    if (s.point) {
+      setChoices(null);
+      setSearchNote(null);
+      goTo({ ...s.point, label: s.label });
+    } else runSearch(s.label);
+  };
+
+  const onSearchKey = (e: React.KeyboardEvent) => {
+    if (suggestions.length === 0) return;
+    // -1 is the text as typed; the arrows wrap through it.
+    const last = suggestions.length - 1;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlighted((i) => (i >= last ? -1 : i + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlighted((i) => (i <= -1 ? last : i - 1));
+    } else if (e.key === "Enter" && highlighted >= 0) {
+      e.preventDefault();
+      pick(suggestions[highlighted]);
+    } else if (e.key === "Escape") {
+      closeSuggestions();
+    }
+  };
+
+  const search = (e: React.FormEvent) => {
     e.preventDefault();
-    const q = query.trim();
+    closeSuggestions();
+    runSearch(query);
+  };
+
+  const runSearch = async (text: string) => {
+    const q = text.trim();
     if (q.length < 3) return;
 
     setSearching(true);
@@ -772,11 +853,26 @@ export default function Home() {
           </>
         )}
 
-        <form onSubmit={search} style={{ display: "flex", gap: 6 }}>
+        <form
+          onSubmit={search}
+          style={{ display: "flex", gap: 6, position: "relative" }}
+        >
           <input
             id="address"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => type(e.target.value)}
+            onKeyDown={onSearchKey}
+            onBlur={closeSuggestions}
+            // The browser's own history of past entries would open over the
+            // suggestions.
+            autoComplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={suggestions.length > 0}
+            aria-controls="address-suggestions"
+            aria-activedescendant={
+              highlighted >= 0 ? `address-suggestion-${highlighted}` : undefined
+            }
             placeholder={
               compare
                 ? `Search for place ${active.toUpperCase()}`
@@ -813,6 +909,74 @@ export default function Home() {
           >
             {searching ? "…" : "Search"}
           </button>
+
+          {suggestions.length > 0 && (
+            <ul
+              id="address-suggestions"
+              role="listbox"
+              aria-label="Suggestions"
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                right: 0,
+                zIndex: 5,
+                listStyle: "none",
+                margin: "4px 0 0",
+                padding: "4px 0",
+                background: "#fff",
+                border: "1px solid #ccc",
+                borderRadius: 6,
+                boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+              }}
+            >
+              {suggestions.map((s, i) => (
+                <li
+                  key={`${s.kind}|${s.label}|${s.context}`}
+                  id={`address-suggestion-${i}`}
+                  role="option"
+                  aria-selected={i === highlighted}
+                  // mousedown, not click: click comes after the input's blur,
+                  // which has closed the list by then.
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pick(s);
+                  }}
+                  onMouseEnter={() => setHighlighted(i)}
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 8,
+                    padding: "7px 10px",
+                    fontSize: 13.5,
+                    cursor: "pointer",
+                    background: i === highlighted ? "#eef5f7" : "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {s.label}
+                  </span>
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      marginLeft: "auto",
+                      color: "#888",
+                      fontSize: 12,
+                    }}
+                  >
+                    {suggestionKind(s)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </form>
 
         {searchNote && (

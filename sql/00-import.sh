@@ -72,12 +72,19 @@ osmium tags-filter "$DATA_DIR/hamilton.osm.pbf" \
   nwr/highway=bus_stop \
   nwr/public_transport=platform \
   -o "$DATA_DIR/amenities.osm.pbf" --overwrite
+# Suburbs and localities, only for the address search to suggest by name.
+osmium tags-filter "$DATA_DIR/hamilton.osm.pbf" \
+  nwr/place=suburb,neighbourhood,quarter,locality,hamlet,village \
+  -o "$DATA_DIR/places.osm.pbf" --overwrite
 
 echo "==> 5/8  Load raw amenity points + polygons into PostGIS"
 ogr2ogr -f PostgreSQL "PG:$PGURI" "$DATA_DIR/amenities.osm.pbf" \
   -nln amenities_points -overwrite -lco GEOMETRY_NAME=geom -t_srs EPSG:4326 points
 ogr2ogr -f PostgreSQL "PG:$PGURI" "$DATA_DIR/amenities.osm.pbf" \
   -nln amenities_polygons -overwrite -lco GEOMETRY_NAME=geom -t_srs EPSG:4326 multipolygons
+# Every place in Hamilton is mapped as a point, so only that layer is read.
+ogr2ogr -f PostgreSQL "PG:$PGURI" "$DATA_DIR/places.osm.pbf" \
+  -nln places_points -overwrite -lco GEOMETRY_NAME=geom -t_srs EPSG:4326 points
 
 echo "==> 6/8  Build the clean amenities table"
 run_sql_file "$SQL_DIR/01-amenities.sql"
@@ -88,6 +95,8 @@ run_sql_file "$SQL_DIR/02-amenity-nodes.sql"
 echo "==> 8/8  Create the analysis functions"
 run_sql_file "$SQL_DIR/03-walkreach-analysis.sql"
 run_sql_file "$SQL_DIR/04-livability-score.sql"
+run_sql_file "$SQL_DIR/05-search-names.sql"
+run_sql_file "$SQL_DIR/06-walkreach-suggest.sql"
 
 echo
 echo "==> Done. Sanity check - compare against the known-good baseline:"

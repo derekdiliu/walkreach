@@ -124,6 +124,53 @@ test("counts what is within reach, lists it, and draws the walk to one", async (
   await expectNoSidewaysScroll(page);
 });
 
+test("suggests suburbs as you type and goes straight to one", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Pick a spot myself" }).click();
+
+  const input = page.getByRole("combobox", { name: "Search for an address in Hamilton" });
+  await input.pressSequentially("chartw");
+  const options = page.getByRole("listbox", { name: "Suggestions" }).getByRole("option");
+  await expect(options.first()).toContainText("Chartwell");
+  await expect(options.first()).toContainText("Area");
+
+  // A suburb carries its point: scored without asking Nominatim.
+  let geocoded = false;
+  page.on("request", (r) => r.url().includes("/api/geocode") && (geocoded = true));
+  const response = analysisResponse(page);
+  await options.first().click();
+  await expectBands(page, await response);
+  await expect(input).toHaveValue("Chartwell");
+  await expect(page.getByRole("listbox", { name: "Suggestions" })).toBeHidden();
+  expect(geocoded).toBe(false);
+});
+
+test("keeps a house number and looks the street up once it is picked", async ({ page }) => {
+  // The street is resolved by Nominatim; answer for it here rather than
+  // asking the real service from a test.
+  let asked = "";
+  await page.route("**/api/geocode**", (route) => {
+    asked = new URL(route.request().url()).searchParams.get("q") ?? "";
+    return route.fulfill({
+      json: { results: [{ lng: 175.2932, lat: -37.7457, label: "13 Hukanui Road, Chartwell" }] },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Pick a spot myself" }).click();
+
+  const input = page.getByRole("combobox", { name: "Search for an address in Hamilton" });
+  await input.pressSequentially("13 Huk");
+  const option = page.getByRole("option", { name: /13 Hukanui Road/ });
+  await expect(option).toBeVisible();
+
+  const response = analysisResponse(page);
+  await input.press("ArrowDown");
+  await expect(page.getByRole("option").first()).toHaveAttribute("aria-selected", "true");
+  await input.press("Enter");
+  await expectBands(page, await response);
+  expect(asked).toBe("13 Hukanui Road");
+});
+
 test("start over clears the place and the link, and a refresh stays clear", async ({ page }) => {
   const response = analysisResponse(page);
   await page.goto(`/?a=${CBD}`);
