@@ -11,8 +11,11 @@ CREATE TABLE amenities (
   area geometry(MultiPolygon, 4326)    -- original footprint; NULL for point amenities
 );
 
--- Point amenities: ogr2ogr gives this layer only (ogc_fid, other_tags, geom),
--- so every tag has to come out of the other_tags hstore.
+-- Point amenities: ogr2ogr promotes a few tags on this layer to columns of
+-- their own - name, highway, ref and some others - and leaves the rest in the
+-- other_tags hstore. A promoted tag is not in other_tags at all, so name and
+-- highway have to come from their columns: reading t->'name' left every point
+-- amenity unnamed, the Woolworths at Chartwell among them.
 INSERT INTO amenities (category, name, geom)
 SELECT
   CASE
@@ -20,14 +23,14 @@ SELECT
     WHEN t->'amenity' IN ('clinic','doctors','hospital') THEN 'clinic'
     WHEN t->'amenity' = 'school' THEN 'school'
     WHEN t->'leisure' = 'park' THEN 'park'
-    WHEN t->'highway' = 'bus_stop' OR t->'public_transport' = 'platform' THEN 'bus_stop'
+    WHEN highway = 'bus_stop' OR t->'public_transport' = 'platform' THEN 'bus_stop'
   END,
-  t->'name', geom
-FROM (SELECT hstore(other_tags) AS t, geom FROM amenities_points) s
+  name, geom
+FROM (SELECT hstore(other_tags) AS t, name, highway, geom FROM amenities_points) s
 WHERE t->'shop' = 'supermarket'
    OR t->'amenity' IN ('clinic','doctors','hospital','school')
    OR t->'leisure' = 'park'
-   OR t->'highway' = 'bus_stop'
+   OR highway = 'bus_stop'
    OR t->'public_transport' = 'platform';
 
 -- Polygon amenities: ogr2ogr promotes common tags to their OWN columns on this

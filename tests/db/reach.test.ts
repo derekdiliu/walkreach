@@ -100,3 +100,23 @@ describe("routes that cannot be walked", () => {
     expect(await route(SAMPLES.cbd, -1)).toBeNull();
   });
 });
+
+describe("amenity names", () => {
+  // ogr2ogr puts name in a column of its own on the points layer, not in
+  // other_tags, and reading it from other_tags left every point unnamed.
+  it("keeps the name OSM gives every point amenity", async () => {
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS lost
+       FROM amenities a JOIN amenities_points p ON p.geom = a.geom
+       WHERE a.area IS NULL AND p.name IS NOT NULL
+         AND a.name IS DISTINCT FROM p.name`,
+    );
+    expect(rows[0].lost).toBe(0);
+  });
+
+  it("names the Woolworths at Chartwell, a point tagged with a brand", async () => {
+    const { breakdown } = await analyse({ lng: 175.27811, lat: -37.74996 });
+    const supermarket = breakdown.find((b) => b.category === "supermarket")!;
+    expect(supermarket.nearest_name).toBe("Woolworths");
+  });
+});
