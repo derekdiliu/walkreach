@@ -363,6 +363,28 @@ export default function Home() {
     setPoint(place.lng, place.lat, place.label);
   };
 
+  // A link opens on the point it carries, and so does a refresh, so clearing
+  // the page has to be something you can ask for.
+  const startOver = () => {
+    for (const key of ["a", "b"] as const) {
+      requestRef.current[key]++;
+      markersRef.current[key]?.remove();
+      markersRef.current[key] = null;
+      setIsochrone(key, EMPTY_GEOJSON);
+    }
+    setSlots({ a: EMPTY_SLOT, b: EMPTY_SLOT });
+    setCompare(false);
+    setActive("a");
+    setQuery("");
+    setChoices(null);
+    setSearchNote(null);
+    setShowWelcome(true);
+    mapRef.current?.flyTo({ center: CITY_CENTRE, zoom: 13 });
+    // The effect mirroring the points into the address bar stops at an empty
+    // A, so the query string is cleared here.
+    window.history.replaceState(null, "", window.location.pathname);
+  };
+
   const tryCityCentre = () => {
     mapRef.current?.flyTo({ center: CITY_CENTRE, zoom: 14 });
     setPoint(CITY_CENTRE[0], CITY_CENTRE[1], null);
@@ -679,6 +701,26 @@ export default function Home() {
               </button>
             ))}
           </div>
+        )}
+
+        {(slots.a.point || slots.b.point) && (
+          <button
+            onClick={startOver}
+            style={{
+              display: "block",
+              marginTop: 8,
+              marginLeft: "auto",
+              background: "none",
+              border: "none",
+              padding: 0,
+              color: "#2c5f6f",
+              fontSize: 13,
+              fontFamily: "inherit",
+              cursor: "pointer",
+            }}
+          >
+            Start over
+          </button>
         )}
 
         <div style={{ height: 20 }} />

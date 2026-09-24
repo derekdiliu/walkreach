@@ -64,6 +64,32 @@ test("a shared link opens straight on its result", async ({ page }) => {
   await expect(page.getByText("out of 100")).toBeVisible();
 });
 
+test("start over clears the place and the link, and a refresh stays clear", async ({ page }) => {
+  const response = analysisResponse(page);
+  await page.goto(`/?a=${CBD}`);
+  await expectBands(page, await response);
+
+  await page.getByRole("button", { name: "Start over" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByText("out of 100")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Show me an example" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start over" })).toBeHidden();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Show me an example" })).toBeVisible();
+  await expect(page.getByText("out of 100")).toBeHidden();
+});
+
+test("start over leaves comparison mode", async ({ page }) => {
+  await page.goto(`/?a=${CBD}&b=${HAMILTON_EAST}`);
+  await expect(page.getByText("/ 100")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Start over" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("button", { name: "One place" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByText("/ 100")).toHaveCount(0);
+});
+
 test("a shared comparison scores both places side by side", async ({ page }) => {
   await page.goto(`/?a=${CBD}&b=${HAMILTON_EAST}`);
 
