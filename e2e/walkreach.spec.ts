@@ -34,6 +34,7 @@ test("the welcome card explains the tool and its example scores the CBD", async 
   await expectBands(page, await response);
 
   await expect(page.getByText("out of 100")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Hamilton city centre" })).toBeVisible();
   await expect(page.getByText(SCORE_LABEL).first()).toBeVisible();
   // The address bar carries the point, so the page can be shared as is.
   await expect(page).toHaveURL(new RegExp(`\\?a=${CBD}$`));

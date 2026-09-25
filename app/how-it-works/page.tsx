@@ -209,7 +209,9 @@ export default function HowItWorks() {
             Routing runs in PostgreSQL with PostGIS and pgRouting.
           </li>
           <li>
-            The map is drawn with MapLibre GL over OpenStreetMap tiles.
+            The map is drawn with MapLibre GL over{" "}
+            <a href="https://openfreemap.org">OpenFreeMap</a> tiles, made from
+            OpenStreetMap.
           </li>
           <li>
             Suggestions come from the same OpenStreetMap data. Addresses and

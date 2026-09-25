@@ -47,6 +47,7 @@ export function useAddressSearch({
   const type = (value: string) => {
     setQuery(value);
     closeSuggestions();
+    setNote(null);
     const q = value.trim();
     if (q.length < 2) return;
 
@@ -121,6 +122,10 @@ export function useAddressSearch({
   const submit = (e: React.SubmitEvent) => {
     e.preventDefault();
     closeSuggestions();
+    if (query.trim().length < 3) {
+      setNote("Type at least three letters of an address or suburb.");
+      return;
+    }
     lookUp(query);
   };
 

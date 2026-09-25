@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { suggestionKind } from "../_lib/walkreach";
 import type { AddressSearch } from "./use-address-search";
 import ui from "./ui.module.css";
@@ -13,12 +14,22 @@ export function SearchBox({
   mapReady: boolean;
 }) {
   const { query, suggestions, highlighted } = search;
-  const canSubmit = mapReady && !search.searching && query.trim().length >= 3;
+  // Not held back for a short query: a button that looks switched off reads as
+  // broken. Submitting too little says what is missing instead.
+  const canSubmit = mapReady && !search.searching;
+  const inputRef = useRef<HTMLInputElement>(null);
 
   return (
     <>
-      <form onSubmit={search.submit} className={styles.form}>
+      <form
+        onSubmit={(e) => {
+          search.submit(e);
+          if (query.trim().length < 3) inputRef.current?.focus();
+        }}
+        className={styles.form}
+      >
         <input
+          ref={inputRef}
           id="address"
           value={query}
           onChange={(e) => search.type(e.target.value)}

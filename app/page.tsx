@@ -184,7 +184,7 @@ export default function Home() {
 
   const tryCityCentre = () => {
     map.flyTo(CITY_CENTRE, 14);
-    setPoint(CITY_CENTRE, null);
+    setPoint(CITY_CENTRE, "Hamilton city centre");
   };
 
   return (

@@ -9,7 +9,13 @@ import type {
   Marker,
 } from "maplibre-gl";
 import type { GeoJSON } from "geojson";
-import { COMPARE_LAYERS, MAP_STYLE, SINGLE_LAYERS, type SourceId } from "../_lib/map-style";
+import {
+  COMPARE_LAYERS,
+  SINGLE_LAYERS,
+  loadBaseStyle,
+  withOverlays,
+  type SourceId,
+} from "../_lib/map-style";
 import {
   CITY_CENTRE,
   SLOT_COLOR,
@@ -44,7 +50,7 @@ export function useWalkMap({
     let cancelled = false;
 
     (async () => {
-      const maplibre = await import("maplibre-gl");
+      const [maplibre, base] = await Promise.all([import("maplibre-gl"), loadBaseStyle()]);
 
       // MapLibre resolves its worker from import.meta.url, which Turbopack
       // rewrites to a chunk path where the worker file does not exist. The
@@ -56,9 +62,12 @@ export function useWalkMap({
 
       map = new maplibre.Map({
         container: containerRef.current,
-        style: MAP_STYLE,
+        style: withOverlays(base),
         center: [CITY_CENTRE.lng, CITY_CENTRE.lat],
         zoom: 13,
+        // Always spelled out. MapLibre otherwise folds it into an (i) after
+        // the first drag, and the tile and data licences ask for it in view.
+        attributionControl: { compact: false },
       });
 
       mapRef.current = map;
