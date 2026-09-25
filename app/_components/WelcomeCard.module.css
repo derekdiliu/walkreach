@@ -29,44 +29,73 @@
   line-height: 1.55;
 }
 
+/* balance: two even lines rather than a word or two left on the last. */
 .title {
   font-family: var(--font-display), Georgia, serif;
-  font-size: 26px;
-  margin-bottom: 8px;
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-wrap: balance;
+  margin-bottom: 12px;
 }
 
 .lede {
   font-size: 17px;
-  margin-bottom: 14px;
-}
-
-.hint {
-  color: #555;
+  color: #444;
+  text-wrap: balance;
 }
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   align-items: center;
   /* pinned, so the way in is on screen before any scrolling */
   position: sticky;
   bottom: 0;
   background: #ffffff;
-  padding: 20px 0 32px;
+  padding: 24px 0 32px;
 }
 
+/* Each keeps to one line; on a narrow card the second moves below. */
 .example {
   padding: 11px 18px;
+  white-space: nowrap;
 }
 
 .dismiss {
   padding: 11px 6px;
   font-size: 14px;
+  white-space: nowrap;
 }
 
+/* Half a phone screen of map: tighter all round, so the two buttons sit side
+   by side on a 390px phone and the card does not need to scroll. */
 @media (max-width: 760px) {
+  .overlay {
+    padding: 12px;
+  }
+
   .card {
     padding: 22px 20px 0;
+  }
+
+  .title {
+    font-size: 24px;
+    margin-bottom: 8px;
+  }
+
+  .lede {
+    font-size: 15px;
+  }
+
+  .actions {
+    gap: 4px 8px;
+    padding-top: 16px;
+  }
+
+  .example {
+    padding: 10px 14px;
   }
 
   .actions {

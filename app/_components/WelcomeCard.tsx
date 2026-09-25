@@ -13,12 +13,10 @@ export function WelcomeCard({
   return (
     <div className={styles.overlay}>
       <div className={styles.card}>
-        <h2 className={styles.title}>WalkReach</h2>
+        <h2 className={styles.title}>How far can you really walk?</h2>
         <p className={styles.lede}>
-          Find out how walkable any address in Hamilton really is.
-        </p>
-        <p className={styles.hint}>
-          Search an address, or click anywhere on the map.
+          See what is within a 5, 10 and 15 minute walk of any address in
+          Hamilton, measured along real streets.
         </p>
 
         <div className={styles.actions}>

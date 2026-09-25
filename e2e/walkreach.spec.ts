@@ -26,7 +26,7 @@ async function expectNoSidewaysScroll(page: Page) {
 
 test("the welcome card explains the tool and its example scores the CBD", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "WalkReach" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "How far can you really walk?" })).toBeVisible();
   await expectNoSidewaysScroll(page);
 
   const response = analysisResponse(page);
