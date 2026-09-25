@@ -17,6 +17,17 @@
   opacity: 0.6;
 }
 
+.secondary {
+  background: #fff;
+  color: #2c5f6f;
+  border: 1px solid #b9ccd2;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 .link {
   background: none;
   border: none;
@@ -37,5 +48,5 @@
   font-size: 11px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: #888;
+  color: #666;
 }

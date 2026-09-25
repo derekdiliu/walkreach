@@ -20,7 +20,7 @@
 }
 
 .unset {
-  color: #888;
+  color: #666;
 }
 
 .loading {
@@ -41,7 +41,7 @@
 .outOf {
   font-size: 13px;
   font-weight: 400;
-  color: #999;
+  color: #666;
 }
 
 .band {
@@ -95,16 +95,16 @@
 }
 
 .none {
-  color: #999;
+  color: #666;
 }
 
 .name {
-  color: #888;
+  color: #666;
   font-size: 12px;
 }
 
 .footnote {
-  color: #888;
+  color: #666;
   font-size: 12.5px;
   margin-top: 14px;
 }

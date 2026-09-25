@@ -38,6 +38,7 @@ export default function Home() {
   const [active, setActive] = useState<SlotKey>("a");
   const [showWelcome, setShowWelcome] = useState(true);
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   // Bumped each time a slot is re-placed or cleared, so a response for a point
   // that is no longer there is dropped rather than drawn over its replacement.
   const requestRef = useRef<Record<SlotKey, number>>({ a: 0, b: 0 });
@@ -48,6 +49,8 @@ export default function Home() {
 
   const { result, loading } = slots.a;
   const offNetwork = !!result && isOffNetwork(result);
+  // A point with no result once loading is over: the request itself failed.
+  const failed = !!slots.a.point && !loading && !result;
 
   const updateSlot = (key: SlotKey, patch: Partial<Slot>) =>
     setSlots((s) => ({ ...s, [key]: { ...s[key], ...patch } }));
@@ -161,6 +164,22 @@ export default function Home() {
   // connection MapLibre arrives well after the buttons do, and a click in
   // between threw instead of scoring, so those buttons stay disabled until
   // map.ready.
+  // The address bar already carries the points, so the link is the page's own.
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard blocked: the address bar still has the link.
+    }
+  };
+
+  const retry = () => {
+    const p = slots.a.point;
+    if (p) analyse("a", p, p.label, false);
+  };
+
   const tryCityCentre = () => {
     map.flyTo(CITY_CENTRE, 14);
     setPoint(CITY_CENTRE, null);
@@ -179,7 +198,8 @@ export default function Home() {
         )}
       </div>
       <aside className="panel">
-        <ModeSwitch compare={compare} onChange={setMode} />
+        {/* Comparing only means something once there is a first place. */}
+        {compare && <ModeSwitch compare={compare} onChange={setMode} />}
 
         {compare && <SlotPicker slots={slots} active={active} onSelect={setActive} />}
 
@@ -187,33 +207,59 @@ export default function Home() {
           search={search}
           mapReady={map.ready}
           placeholder={
-            compare ? `Search for place ${active.toUpperCase()}` : "Street, suburb or place"
+            compare
+              ? `Search for place ${active.toUpperCase()}`
+              : "Enter a Hamilton address or suburb"
           }
         />
 
         {(slots.a.point || slots.b.point) && (
-          <button onClick={startOver} className={`${ui.link} ${styles.startOver}`}>
-            Start over
-          </button>
+          <div className={styles.actions}>
+            {!compare && (
+              <button onClick={() => setMode(true)} className={ui.link}>
+                Compare with another place
+              </button>
+            )}
+            <div className={styles.buttons}>
+              <button onClick={copyLink} className={ui.secondary}>
+                {copied ? "Copied" : "Copy link"}
+              </button>
+              <button onClick={startOver} className={ui.secondary}>
+                Start over
+              </button>
+            </div>
+          </div>
         )}
 
         <div className={styles.spacer} />
 
-        {!compare && !result && !loading && (
+        {!compare && !slots.a.point && (
           <Intro mapReady={map.ready} onTry={tryCityCentre} />
         )}
 
-        {!compare && loading && <p className={styles.status}>Calculating…</p>}
+        <div aria-live="polite">
+          {!compare && loading && <p className={styles.status}>Calculating…</p>}
 
-        {!compare && offNetwork && (
-          <p className={styles.offNetwork}>
-            This location is outside the Hamilton walking network, so no
-            catchment could be computed. Try a point inside the city.
-          </p>
-        )}
+          {!compare && failed && (
+            <p className={styles.failed}>
+              We couldn’t calculate this location.{" "}
+              <button onClick={retry} className={`${ui.link} ${styles.retry}`}>
+                Try again
+              </button>
+            </p>
+          )}
+
+          {!compare && offNetwork && (
+            <p className={styles.offNetwork}>
+              This location is outside the Hamilton walking network, so no
+              catchment could be computed. Try a point inside the city.
+            </p>
+          )}
+        </div>
 
         {!compare && result && !offNetwork && (
           <ScoreCard
+            place={slots.a.point!}
             result={result}
             openCategory={openCategory}
             onToggleCategory={(c) => setOpenCategory(openCategory === c ? null : c)}

@@ -17,25 +17,9 @@ export function WelcomeCard({
         <p className={styles.lede}>
           Find out how walkable any address in Hamilton really is.
         </p>
-        <p className={styles.method}>
-          Distances are measured along real streets and footpaths, not
-          straight lines — so the Waikato River and every other barrier
-          counts, the way it does when you actually walk.
+        <p className={styles.hint}>
+          Search an address, or click anywhere on the map.
         </p>
-
-        <ol className={styles.steps}>
-          <li>
-            Search an address, or click anywhere on the map — a
-            street, a suburb, a place you are thinking of renting.
-          </li>
-          <li>
-            See how far you can walk from there in 5, 10 and 15 minutes.
-          </li>
-          <li>
-            Get a walkability score and how far the nearest supermarket,
-            clinic, school, park and bus stop are on foot.
-          </li>
-        </ol>
 
         <div className={styles.actions}>
           <button

@@ -9,6 +9,7 @@ import {
   withinMinutes,
   type Reached,
   type Result,
+  type Slot,
 } from "../_lib/walkreach";
 import ui from "./ui.module.css";
 import styles from "./ScoreCard.module.css";
@@ -16,12 +17,14 @@ import styles from "./ScoreCard.module.css";
 // One place's result: the score, what is within reach, and the nearest of
 // each kind, each opening into everything of that kind within the walk.
 export function ScoreCard({
+  place,
   result,
   openCategory,
   onToggleCategory,
   selected,
   onPick,
 }: {
+  place: NonNullable<Slot["point"]>;
   result: Result;
   openCategory: string | null;
   onToggleCategory: (category: string) => void;
@@ -31,6 +34,10 @@ export function ScoreCard({
   const band = scoreBand(result.total_score);
   return (
     <div>
+      {/* Named, so a screenshot of the score says where it is for. */}
+      <h2 className={`${styles.place} ${ui.truncate}`} title={place.label ?? undefined}>
+        {place.label ?? `Pin at ${place.lat.toFixed(4)}, ${place.lng.toFixed(4)}`}
+      </h2>
       <div className={styles.header}>
         <div className={styles.score}>
           <div className={styles.outOf}>out of 100</div>

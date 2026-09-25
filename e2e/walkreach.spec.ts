@@ -193,8 +193,27 @@ test("start over leaves comparison mode", async ({ page }) => {
 
   await page.getByRole("button", { name: "Start over" }).click();
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.getByRole("button", { name: "One place" })).toHaveAttribute("aria-pressed", "true");
+  // Back to one place, where comparing is offered only once there is a first.
+  await expect(page.getByRole("group", { name: "Mode" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Compare with another place" })).toBeHidden();
   await expect(page.getByText("/ 100")).toHaveCount(0);
+});
+
+test("a failed analysis says so and can be retried", async ({ page }) => {
+  let fail = true;
+  await page.route("**/api/livability**", (route) =>
+    fail ? route.fulfill({ status: 500 }) : route.continue(),
+  );
+  await page.goto(`/?a=${CBD}`);
+  await expect(page.getByText("We couldn’t calculate this location.")).toBeVisible();
+  // Not the intro again, as if nothing had been asked.
+  await expect(page.getByRole("button", { name: "Try the city centre" })).toBeHidden();
+
+  fail = false;
+  const response = analysisResponse(page);
+  await page.getByRole("button", { name: "Try again" }).click();
+  await expectBands(page, await response);
+  await expect(page.getByText("out of 100")).toBeVisible();
 });
 
 test("a shared comparison scores both places side by side", async ({ page }) => {

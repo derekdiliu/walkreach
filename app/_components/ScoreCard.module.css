@@ -1,3 +1,9 @@
+.place {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
 .header {
   display: flex;
   align-items: flex-start;
@@ -148,16 +154,16 @@
 }
 
 .none {
-  color: #aaa;
+  color: #767676;
 }
 
 .max {
-  color: #aaa;
+  color: #767676;
   font-weight: 400;
 }
 
 .footnote {
-  color: #888;
+  color: #666;
   font-size: 12.5px;
   margin-top: 14px;
 }
@@ -203,7 +209,7 @@
 }
 
 .routeNote {
-  color: #888;
+  color: #666;
   font-size: 12px;
   padding: 6px 8px 0;
 }
