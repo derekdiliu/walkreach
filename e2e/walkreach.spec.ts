@@ -102,11 +102,16 @@ test("counts what is within reach, lists it, and draws the walk to one", async (
 
   await page.getByRole("button", { name: /Supermarket .* within 15 min/ }).click();
   const list = page.getByRole("list", { name: "Supermarket within 15 minutes" });
-  await expect(list.getByRole("button")).toHaveCount(supermarkets.length);
+  // The nearest five, then the rest on asking.
+  const items = list.locator("button[aria-pressed]");
+  await expect(items).toHaveCount(Math.min(supermarkets.length, 5));
+  if (supermarkets.length > 5)
+    await list.getByRole("button", { name: `Show all ${supermarkets.length}` }).click();
+  await expect(items).toHaveCount(supermarkets.length);
 
   const nearest = supermarkets[0];
   const route = page.waitForResponse((r) => r.url().includes("/api/route"));
-  const pick = list.getByRole("button").first();
+  const pick = items.first();
   await pick.click();
   const body = await (await route).json();
   expect(body.amenity).toEqual(nearest);

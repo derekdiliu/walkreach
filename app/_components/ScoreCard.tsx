@@ -11,6 +11,7 @@ import {
   type Result,
   type Slot,
 } from "../_lib/walkreach";
+import { useState } from "react";
 import ui from "./ui.module.css";
 import styles from "./ScoreCard.module.css";
 
@@ -128,9 +129,14 @@ function ReachCounts({ amenities }: { amenities: Reached[] }) {
       <thead>
         <tr className={ui.eyebrow}>
           <th className={styles.countsCorner}>Within reach</th>
-          {minutes.map((m) => (
-            <th key={m} className={`${styles.number} ${styles.countsHead}`}>
-              {m} min
+          {BANDS.map((b) => (
+            <th key={b.minutes} className={`${styles.number} ${styles.countsHead}`}>
+              {/* The band's colour on the map, so the column reads against it. */}
+              <span
+                className={styles.bandSwatch}
+                style={{ background: b.color, opacity: b.opacity }}
+              />
+              {b.minutes} min
             </th>
           ))}
         </tr>
@@ -157,6 +163,8 @@ function ReachCounts({ amenities }: { amenities: Reached[] }) {
   );
 }
 
+const LIST_LENGTH = 5;
+
 function ReachList({
   category,
   amenities,
@@ -168,9 +176,15 @@ function ReachList({
   selected: number | null;
   onPick: (a: Reached) => void;
 }) {
+  const [showAll, setShowAll] = useState(false);
+  // A city-centre walk reaches dozens of bus stops; the nearest few are what
+  // most people want. Keep the picked one in view even when it is further.
+  const shown = showAll
+    ? amenities
+    : amenities.filter((a, i) => i < LIST_LENGTH || a.id === selected);
   return (
     <ul aria-label={`${categoryLabel(category)} within 15 minutes`} className={styles.list}>
-      {amenities.map((a) => {
+      {shown.map((a) => {
         const on = selected === a.id;
         return (
           <li key={a.id}>
@@ -188,6 +202,13 @@ function ReachList({
           </li>
         );
       })}
+      {shown.length < amenities.length && (
+        <li>
+          <button onClick={() => setShowAll(true)} className={`${ui.link} ${styles.showAll}`}>
+            Show all {amenities.length}
+          </button>
+        </li>
+      )}
       {selected !== null && amenities.some((a) => a.id === selected) && (
         <li className={styles.routeNote}>
           The walk is drawn on the map. Its dashed ends, onto the network and

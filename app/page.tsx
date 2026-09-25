@@ -76,6 +76,8 @@ export default function Home() {
     if (request !== requestRef.current[key]) return;
     updateSlot(key, { result: data, loading: false });
     if (data) map.setData(`isochrone-${key}`, data.isochrone);
+    // Coloured pins mean two places, which fitBoth has already framed.
+    if (data && !coloured) map.showWalk(data.isochrone);
   };
 
   // A shared link opens on what was shared, not on the welcome card. Read

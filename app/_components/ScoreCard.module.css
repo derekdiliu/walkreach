@@ -76,6 +76,15 @@
   color: inherit;
 }
 
+.bandSwatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: 0;
+}
+
 .zero {
   color: #bbb;
 }
@@ -174,9 +183,6 @@
   list-style: none;
   margin: 0 0 8px;
   padding: 0;
-  /* A city-centre walk reaches dozens of bus stops. */
-  max-height: 264px;
-  overflow-y: auto;
 }
 
 .amenity {
@@ -206,6 +212,11 @@
 .walk {
   flex-shrink: 0;
   color: #666;
+}
+
+.showAll {
+  padding: 6px 11px;
+  font-size: 13px;
 }
 
 .routeNote {

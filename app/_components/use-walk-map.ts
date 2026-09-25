@@ -10,7 +10,13 @@ import type {
 } from "maplibre-gl";
 import type { GeoJSON } from "geojson";
 import { COMPARE_LAYERS, MAP_STYLE, SINGLE_LAYERS, type SourceId } from "../_lib/map-style";
-import { CITY_CENTRE, SLOT_COLOR, type LngLat, type SlotKey } from "../_lib/walkreach";
+import {
+  CITY_CENTRE,
+  SLOT_COLOR,
+  type Isochrone,
+  type LngLat,
+  type SlotKey,
+} from "../_lib/walkreach";
 
 // The MapLibre map, its two pins and its three GeoJSON sources. The page only
 // ever talks to the map through what this returns.
@@ -120,6 +126,30 @@ export function useWalkMap({
   const fitBounds = (bounds: LngLatBoundsLike, options: FitBoundsOptions) =>
     mapRef.current?.fitBounds(bounds, options);
 
+  // Frame the whole walk, unless it is already on screen: a click well inside
+  // the view should not move the map under the cursor. A search flies to the
+  // point first, so wait for that to land before judging what is in view.
+  const showWalk = (isochrone: Isochrone) => {
+    const map = mapRef.current;
+    const coords = isochrone.features.flatMap((f) =>
+      f.geometry.type === "Polygon"
+        ? f.geometry.coordinates.flat()
+        : f.geometry.coordinates.flat(2),
+    );
+    if (!map || coords.length === 0) return;
+    const lngs = coords.map((c) => c[0]);
+    const lats = coords.map((c) => c[1]);
+    const sw: [number, number] = [Math.min(...lngs), Math.min(...lats)];
+    const ne: [number, number] = [Math.max(...lngs), Math.max(...lats)];
+    const fit = () => {
+      const view = map.getBounds();
+      if (!view.contains(sw) || !view.contains(ne))
+        map.fitBounds([sw, ne], { padding: 32, maxZoom: 16 });
+    };
+    if (map.isMoving()) map.once("moveend", fit);
+    else fit();
+  };
+
   // Frame both walks, not just both pins: each can reach 1,250 m out, which
   // at Hamilton's latitude is about 0.0112 degrees of latitude and 0.0142 of
   // longitude.
@@ -150,6 +180,7 @@ export function useWalkMap({
     flyTo,
     jumpTo,
     fitBounds,
+    showWalk,
     fitBoth,
     scrollIntoView,
   };
