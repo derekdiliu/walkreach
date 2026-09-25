@@ -135,9 +135,11 @@ export function useWalkMap({
   const fitBounds = (bounds: LngLatBoundsLike, options: FitBoundsOptions) =>
     mapRef.current?.fitBounds(bounds, options);
 
-  // Frame the whole walk, unless it is already on screen: a click well inside
-  // the view should not move the map under the cursor. A search flies to the
-  // point first, so wait for that to land before judging what is in view.
+  // Frame the whole walk when it is off screen or lost in a wide view: at the
+  // example's zoom on a large monitor it filled a sixth of the map. A walk
+  // already on screen at a readable size is left alone, so a click does not
+  // move the map under the cursor. A search flies to the point first, so wait
+  // for that to land before judging what is in view.
   const showWalk = (isochrone: Isochrone) => {
     const map = mapRef.current;
     const coords = isochrone.features.flatMap((f) =>
@@ -152,8 +154,11 @@ export function useWalkMap({
     const ne: [number, number] = [Math.max(...lngs), Math.max(...lats)];
     const fit = () => {
       const view = map.getBounds();
-      if (!view.contains(sw) || !view.contains(ne))
-        map.fitBounds([sw, ne], { padding: 32, maxZoom: 16 });
+      const inView = view.contains(sw) && view.contains(ne);
+      const small =
+        (ne[0] - sw[0]) / (view.getEast() - view.getWest()) < 1 / 3 &&
+        (ne[1] - sw[1]) / (view.getNorth() - view.getSouth()) < 1 / 3;
+      if (!inView || small) map.fitBounds([sw, ne], { padding: 48, maxZoom: 16 });
     };
     if (map.isMoving()) map.once("moveend", fit);
     else fit();
