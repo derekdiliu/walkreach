@@ -13,7 +13,7 @@
   border: 2px solid;
   border-radius: 6px;
   background: #fff;
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
   color: #666;
   text-align: left;
@@ -26,6 +26,6 @@
 
 .hint {
   color: #666;
-  font-size: 13px;
+  font-size: 12px;
   margin: 6px 0 10px;
 }

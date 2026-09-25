@@ -218,18 +218,20 @@ export default function Home() {
         {(slots.a.point || slots.b.point) && (
           <div className={styles.actions}>
             {!compare && (
-              <button onClick={() => setMode(true)} className={ui.link}>
-                Compare with another place
+              <button
+                onClick={() => setMode(true)}
+                aria-label="Compare with another place"
+                className={ui.secondary}
+              >
+                Compare
               </button>
             )}
-            <div className={styles.buttons}>
-              <button onClick={copyLink} className={ui.secondary}>
-                {copied ? "Copied" : "Copy link"}
-              </button>
-              <button onClick={startOver} className={ui.secondary}>
-                Start over
-              </button>
-            </div>
+            <button onClick={copyLink} className={ui.secondary}>
+              {copied ? "Copied" : "Copy link"}
+            </button>
+            <button onClick={startOver} className={ui.secondary}>
+              Start over
+            </button>
           </div>
         )}
 

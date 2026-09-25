@@ -1,5 +1,5 @@
 .place {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   margin-bottom: 10px;
 }
@@ -13,24 +13,24 @@
 
 .score {
   flex-shrink: 0;
-  border: 1px solid #cfdde2;
-  border-radius: 6px;
-  background: #f2f8fa;
-  padding: 5px 10px 7px;
+  border: 1px solid color-mix(in srgb, var(--band) 35%, #fff);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--band) 7%, #fff);
+  padding: 6px 14px 8px;
   text-align: center;
 }
 
 .outOf {
-  font-size: 9px;
+  font-size: 12px;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: #6b8a94;
+  color: #666;
 }
 
 .total {
-  font-size: 30px;
+  font-size: 40px;
   font-weight: bold;
-  color: #2c5f6f;
+  color: var(--band);
   line-height: 1.1;
 }
 
@@ -39,7 +39,7 @@
 }
 
 .bandLabel {
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.25;
 }
@@ -55,7 +55,7 @@
   width: 100%;
   border-collapse: collapse;
   margin-top: 22px;
-  font-size: 13.5px;
+  font-size: 14px;
 }
 
 .countsCorner {
@@ -139,12 +139,12 @@
 .count {
   color: #2c5f6f;
   font-weight: 400;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .detail {
   color: #666;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .nearest {
@@ -173,7 +173,7 @@
 
 .footnote {
   color: #666;
-  font-size: 12.5px;
+  font-size: 12px;
   margin-top: 14px;
 }
 
@@ -195,7 +195,7 @@
   background: none;
   text-align: left;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   color: #1a1a1a;
   cursor: pointer;
 }
@@ -216,7 +216,7 @@
 
 .showAll {
   padding: 6px 11px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .routeNote {

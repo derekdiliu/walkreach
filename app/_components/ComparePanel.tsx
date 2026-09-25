@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import {
   SLOT_COLOR,
   categoryLabel,
@@ -95,7 +96,10 @@ function PlaceSummary({
         <div className={styles.error}>Outside the walking network.</div>
       ) : (
         <>
-          <div className={styles.total}>
+          <div
+            className={styles.total}
+            style={{ "--band": scoreBand(result.total_score).color } as CSSProperties}
+          >
             {result.total_score}
             <span className={styles.outOf}>
               {" "}

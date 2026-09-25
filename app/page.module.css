@@ -1,20 +1,7 @@
 .actions {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-  margin-top: 10px;
-}
-
-.actions > button {
-  padding: 0;
-  font-size: 13px;
-}
-
-.buttons {
-  display: flex;
   gap: 6px;
-  margin-left: auto;
+  margin-top: 10px;
 }
 
 .spacer {

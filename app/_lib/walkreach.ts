@@ -89,17 +89,18 @@ export const CATEGORY_LABEL: Record<string, string> = {
 
 // A score on its own does not tell anyone whether 62 is good. Each band says
 // what the number means in terms of the five essentials WalkReach actually
-// measures, over the 15 minute network walk it measures them within.
+// measures, over the 15 minute network walk it measures them within. The
+// colours run green to red and each is dark enough to read on white.
 const SCORE_BANDS = [
-  { min: 80, label: "Everything close by",
+  { min: 80, label: "Everything close by", color: "#1d7a46",
     blurb: "All five everyday essentials are a short walk from here." },
-  { min: 60, label: "Mostly walkable",
+  { min: 60, label: "Mostly walkable", color: "#4f7f1f",
     blurb: "Most everyday essentials are within a 15 minute walk." },
-  { min: 40, label: "Some essentials nearby",
+  { min: 40, label: "Some essentials nearby", color: "#9a6700",
     blurb: "A few essentials are close. Others mean a longer trip." },
-  { min: 20, label: "Limited on foot",
+  { min: 20, label: "Limited on foot", color: "#b54708",
     blurb: "Most everyday trips from here would need a car or a bus." },
-  { min: 0, label: "Car-dependent",
+  { min: 0, label: "Car-dependent", color: "#b42318",
     blurb: "Almost nothing is within a 15 minute walk." },
 ];
 

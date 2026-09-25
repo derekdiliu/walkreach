@@ -277,6 +277,42 @@ html {
   color: #333;
 }
 
+/* The sketches on How it works. Kept to the page's measure on a wide screen;
+   on a phone they scale down with it. */
+.article .diagram {
+  margin: 20px 0 18px;
+}
+
+.article .diagram svg {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  font-size: 14px;
+  fill: #1a1a1a;
+}
+
+.article .diagram .river {
+  font-style: italic;
+  fill: #2f6f84;
+  font-size: 12px;
+}
+
+/* A label over the lines and the river stays readable. */
+.article .diagram .halo {
+  fill: #444;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 4px;
+  stroke-linejoin: round;
+}
+
+.article .diagram figcaption {
+  margin-top: 6px;
+  font-size: 14px;
+  color: #666;
+}
+
 .article .cta {
   display: inline-block;
   margin-top: 8px;

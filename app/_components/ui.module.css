@@ -23,7 +23,7 @@
   border: 1px solid #b9ccd2;
   border-radius: 6px;
   padding: 4px 10px;
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
   cursor: pointer;
 }
@@ -45,7 +45,7 @@
 
 /* The small uppercase label over a list or table. */
 .eyebrow {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: #666;

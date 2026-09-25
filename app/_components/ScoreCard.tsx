@@ -11,7 +11,7 @@ import {
   type Result,
   type Slot,
 } from "../_lib/walkreach";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import ui from "./ui.module.css";
 import styles from "./ScoreCard.module.css";
 
@@ -40,7 +40,7 @@ export function ScoreCard({
         {place.label ?? `Pin at ${place.lat.toFixed(4)}, ${place.lng.toFixed(4)}`}
       </h2>
       <div className={styles.header}>
-        <div className={styles.score}>
+        <div className={styles.score} style={{ "--band": band.color } as CSSProperties}>
           <div className={styles.outOf}>out of 100</div>
           <div className={styles.total}>{result.total_score}</div>
         </div>
