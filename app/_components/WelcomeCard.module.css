@@ -20,7 +20,11 @@
   /* no bottom padding: the pinned buttons carry it, so nothing shows
      through below them as the card scrolls */
   padding: 32px 34px 0;
-  max-width: 460px;
+  /* Wide enough for the question on one line at 30px. The width comes from
+     the map pane rather than the text, so the title can size to it. */
+  width: 100%;
+  max-width: 520px;
+  container-type: inline-size;
   /* A phone gives the map about half the screen, less than the card needs:
      scroll inside it rather than spill over the top bar and the panel. */
   max-height: 100%;
@@ -32,7 +36,9 @@
 /* balance: two even lines rather than a word or two left on the last. */
 .title {
   font-family: var(--font-display), Georgia, serif;
-  font-size: 30px;
+  /* The question is about 14 times as wide as its font size: fit it to one
+     line where the card allows, down to 22px. */
+  font-size: clamp(22px, 7cqi, 30px);
   font-weight: 600;
   line-height: 1.2;
   text-wrap: balance;
@@ -81,7 +87,6 @@
   }
 
   .title {
-    font-size: 24px;
     margin-bottom: 8px;
   }
 
