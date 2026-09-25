@@ -114,6 +114,16 @@ html {
   height: 100%;
 }
 
+/* A click on the map places the pin, so the pointer says so. Dragging still
+   shows MapLibre's grab. */
+.map-pane .maplibregl-canvas-container.maplibregl-interactive {
+  cursor: crosshair;
+}
+
+.map-pane .maplibregl-canvas-container.maplibregl-interactive:active {
+  cursor: grabbing;
+}
+
 .panel {
   width: 380px;
   flex-shrink: 0;

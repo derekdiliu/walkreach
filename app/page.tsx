@@ -272,7 +272,10 @@ export default function Home() {
 
         {compare && <ComparePanel a={slots.a} b={slots.b} />}
 
-        <Legend compare={compare} />
+        {/* Only once there is something on the map for it to explain. */}
+        {(compare ? slots.a.result || slots.b.result : result && !offNetwork) && (
+          <Legend compare={compare} />
+        )}
       </aside>
     </div>
   );
