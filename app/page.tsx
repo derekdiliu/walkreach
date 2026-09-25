@@ -5,6 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import {
   CITY_CENTRE,
   EMPTY_GEOJSON,
+  EXAMPLE_PLACES,
   EMPTY_SLOT,
   formatPoint,
   isOffNetwork,
@@ -182,9 +183,9 @@ export default function Home() {
     if (p) analyse("a", p, p.label, false);
   };
 
-  const tryCityCentre = () => {
-    map.flyTo(CITY_CENTRE, 14);
-    setPoint(CITY_CENTRE, "Hamilton city centre");
+  const tryPlace = (place: Place) => {
+    map.flyTo(place, 14);
+    setPoint(place, place.label);
   };
 
   return (
@@ -194,7 +195,7 @@ export default function Home() {
         {showWelcome && (
           <WelcomeCard
             mapReady={map.ready}
-            onExample={tryCityCentre}
+            onExample={() => tryPlace(EXAMPLE_PLACES[0])}
             onDismiss={() => setShowWelcome(false)}
           />
         )}
@@ -238,7 +239,7 @@ export default function Home() {
         <div className={styles.spacer} />
 
         {!compare && !slots.a.point && (
-          <Intro mapReady={map.ready} onTry={tryCityCentre} />
+          <Intro mapReady={map.ready} onTry={tryPlace} />
         )}
 
         <div aria-live="polite">

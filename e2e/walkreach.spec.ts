@@ -213,7 +213,7 @@ test("a failed analysis says so and can be retried", async ({ page }) => {
   await page.goto(`/?a=${CBD}`);
   await expect(page.getByText("We couldn’t calculate this location.")).toBeVisible();
   // Not the intro again, as if nothing had been asked.
-  await expect(page.getByRole("button", { name: "Try the city centre" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Hamilton East" })).toBeHidden();
 
   fail = false;
   const response = analysisResponse(page);

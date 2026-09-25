@@ -12,6 +12,16 @@
   margin-bottom: 18px;
 }
 
-.try {
-  padding: 10px 16px;
+.tryHeading {
+  margin-bottom: 8px;
+}
+
+.places {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.places button {
+  padding: 6px 12px;
 }

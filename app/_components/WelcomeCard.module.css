@@ -30,6 +30,7 @@
 }
 
 .title {
+  font-family: var(--font-display), Georgia, serif;
   font-size: 26px;
   margin-bottom: 8px;
 }

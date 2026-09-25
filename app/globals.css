@@ -66,14 +66,29 @@ html {
 
 .site-nav-brand {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  font-size: 17px;
-  font-weight: 700;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
 }
 
+.site-nav-mark {
+  color: #2c5f6f;
+  flex-shrink: 0;
+}
+
+.site-nav-name {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.site-nav-accent {
+  color: #2c5f6f;
+}
+
 .site-nav-tagline {
+  margin-left: 4px;
   font-size: 13px;
   font-weight: 400;
   color: #666;
@@ -173,6 +188,37 @@ html {
   }
 }
 
+/* A 375px phone has no room for the full-size name beside all three links. */
+@media (max-width: 420px) {
+  .site-nav {
+    gap: 12px;
+  }
+
+  .site-nav-brand {
+    gap: 6px;
+  }
+
+  .site-nav-mark {
+    width: 22px;
+    height: 22px;
+  }
+
+  .site-nav-name {
+    font-size: 18px;
+  }
+
+  .site-nav-links {
+    gap: 14px;
+  }
+}
+
+/* The smallest phones keep the name and drop the mark. */
+@media (max-width: 340px) {
+  .site-nav-mark {
+    display: none;
+  }
+}
+
 /* The How it works page is long-form reading, so it gets a measure and a
    type scale rather than a pile of inline styles repeated per paragraph. */
 
@@ -182,12 +228,19 @@ html {
   color: #1a1a1a;
 }
 
+/* About 65 characters a line at 16px. */
 .article {
-  max-width: 680px;
+  max-width: 620px;
   margin: 0 auto;
   padding: 48px 24px 72px;
   font-size: 16px;
   line-height: 1.65;
+}
+
+.article h1,
+.article h2 {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 600;
 }
 
 .article h1 {

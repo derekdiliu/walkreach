@@ -68,6 +68,17 @@ export const EMPTY_GEOJSON: FeatureCollection = { type: "FeatureCollection", fea
 
 export const CITY_CENTRE: LngLat = { lng: 175.2793, lat: -37.7871 };
 
+// Places to try from the empty panel, the city centre first. The suburbs
+// are the suggest search's own points for them, and their scores run from
+// about 40 to 78, so trying a few shows the range.
+export const EXAMPLE_PLACES: Place[] = [
+  { ...CITY_CENTRE, label: "Hamilton city centre" },
+  { lng: 175.297964, lat: -37.795786, label: "Hamilton East" },
+  { lng: 175.25711, lat: -37.790941, label: "Frankton" },
+  { lng: 175.318946, lat: -37.800171, label: "Hillcrest" },
+  { lng: 175.272809, lat: -37.730232, label: "Rototuna" },
+];
+
 export const BANDS = [
   { minutes: 5, color: "#0d3b4f", opacity: 0.66 },
   { minutes: 10, color: "#3e93ad", opacity: 0.54 },

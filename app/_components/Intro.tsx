@@ -1,8 +1,15 @@
+import { EXAMPLE_PLACES, type Place } from "../_lib/walkreach";
 import ui from "./ui.module.css";
 import styles from "./Intro.module.css";
 
 // The panel before any place is chosen.
-export function Intro({ mapReady, onTry }: { mapReady: boolean; onTry: () => void }) {
+export function Intro({
+  mapReady,
+  onTry,
+}: {
+  mapReady: boolean;
+  onTry: (place: Place) => void;
+}) {
   return (
     <div>
       <p className={styles.question}>
@@ -18,13 +25,19 @@ export function Intro({ mapReady, onTry }: { mapReady: boolean; onTry: () => voi
         Distances follow the real street and footpath network, not
         straight lines — so the Waikato River and other barriers count.
       </p>
-      <button
-        onClick={onTry}
-        disabled={!mapReady}
-        className={`${ui.primary} ${ui.example} ${styles.try}`}
-      >
-        Try the city centre
-      </button>
+      <div className={`${ui.eyebrow} ${styles.tryHeading}`}>Or try one of these</div>
+      <div className={styles.places}>
+        {EXAMPLE_PLACES.map((place) => (
+          <button
+            key={place.label}
+            onClick={() => onTry(place)}
+            disabled={!mapReady}
+            className={`${ui.secondary} ${ui.example}`}
+          >
+            {place.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
