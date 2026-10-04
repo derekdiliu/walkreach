@@ -12,7 +12,24 @@ permissions:
   packages: write
 
 jobs:
+  # The unit tests mock the database, so they need nothing but Node. An image
+  # is only built and published once they pass.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # LayoutProps and the other route types are generated, not checked in.
+      - run: npx next typegen
+      - run: npx tsc --noEmit
+      - run: npm test
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
