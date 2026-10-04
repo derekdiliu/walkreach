@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "@/app/api/geocode/route";
+
+// Imported afresh for every test so that no cached lookup, rate count or
+// reserved Nominatim slot carries over.
+let GET: typeof import("@/app/api/geocode/route").GET;
 
 const fetchMock = vi.fn();
 
@@ -13,12 +16,17 @@ const place = (display_name: string, lon = "175.28", lat = "-37.78") => ({
   lat,
 });
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules();
+  ({ GET } = await import("@/app/api/geocode/route"));
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
 
 describe("GET /api/geocode", () => {
   it.each(["", "ab", "  ab  "])("rejects %j as too short without calling Nominatim", async (q) => {
@@ -82,5 +90,50 @@ describe("GET /api/geocode", () => {
   it("answers 502 when Nominatim cannot be reached", async () => {
     fetchMock.mockRejectedValue(new TypeError("fetch failed"));
     expect((await get("victoria street")).status).toBe(502);
+  });
+
+  it("answers a repeated query from its cache, whatever the case", async () => {
+    fetchMock.mockImplementation(async () =>
+      Response.json([place("Grey Street, Hamilton East, Hamilton, Waikato")]),
+    );
+    const first = await (await get("grey street")).json();
+    const second = await (await get("  Grey Street ")).json();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(second).toEqual(first);
+  });
+
+  it("does not cache a failed lookup", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+    expect((await get("victoria street")).status).toBe(502);
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () => Response.json([]));
+    const next = get("victoria street");
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await next).status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks Nominatim at most once a second, however many ask at once", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () => Response.json([]));
+    const both = [get("grey street"), get("victoria street")];
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect((await Promise.all(both)).map((r) => r.status)).toEqual([200, 200]);
+  });
+
+  it("turns a lookup away with 503 rather than queue it past 5 s", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(async () => Response.json([]));
+    // Slots at 0 to 5 s; the seventh would wait 6 s.
+    const lookups = Array.from({ length: 7 }, (_, i) => get(`street ${i}`));
+    await vi.advanceTimersByTimeAsync(5000);
+    const statuses = (await Promise.all(lookups)).map((r) => r.status);
+    expect(statuses).toEqual([200, 200, 200, 200, 200, 200, 503]);
+    expect(fetchMock).toHaveBeenCalledTimes(6);
   });
 });

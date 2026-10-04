@@ -71,6 +71,8 @@ export function useAddressSearch({
     clearResults();
     try {
       const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+      // Busy or rate-limited is not "no match".
+      if (!res.ok) throw new Error(`geocode ${res.status}`);
       const { results } = (await res.json()) as { results?: Place[] };
 
       if (!results || results.length === 0) {

@@ -290,6 +290,10 @@ version after the image workflow finishes:
 docker compose pull app && docker compose up -d app
 ```
 
+The app keeps analyses in memory, keyed by the network vertex a walk starts
+from, so after restoring a new dump into the database run
+`docker compose restart app` as well, or it keeps answering from the old data.
+
 ## Project structure
 
 ```
@@ -355,7 +359,9 @@ on, not oversights:
 
 ## Roadmap
 
-- Grid pre-computation and caching to hold response times under ~2 s
+- Grid pre-computation to hold first-visit response times under ~2 s.
+  Repeat visits are already cached: a click that starts from a vertex
+  analysed before is answered from memory in milliseconds.
 
 ## About
 

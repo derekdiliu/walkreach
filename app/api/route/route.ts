@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
+import { pool } from "@/app/_lib/db";
+import { tooMany } from "@/app/_lib/limits";
 import { parseId, parsePoint } from "../params";
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 // The walk from a point to one of the amenities its analysis listed. Asked
 // for one at a time, when someone picks an amenity, rather than returned for
@@ -20,6 +19,9 @@ export async function GET(req: NextRequest) {
   }
   const { lng, lat } = point;
 
+  const limited = tooMany(req, "route", 120);
+  if (limited) return limited;
+
   try {
     const result = await pool.query(
       "SELECT walkreach_route($1, $2, $3) AS route",
@@ -35,7 +37,10 @@ export async function GET(req: NextRequest) {
     }
 
     const { amenity: reached, destination, route, connectors } = found;
-    return NextResponse.json({ amenity: reached, destination, route, connectors });
+    return NextResponse.json(
+      { amenity: reached, destination, route, connectors },
+      { headers: { "Cache-Control": "public, max-age=3600" } },
+    );
   } catch (err) {
     console.error(err);
     return NextResponse.json(

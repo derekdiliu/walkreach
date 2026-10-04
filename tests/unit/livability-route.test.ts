@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-// The route builds its Pool at import time, so pg is swapped out before the
-// import below. All the route does with it is one query, which each test
-// scripts through query.
+// The route's Pool is built at import time, so pg is swapped out before the
+// import. The route asks for the start vertex, then for the analysis when
+// that vertex is not cached; answer() scripts both. The route is imported
+// afresh for every test so that no cache or rate count carries over.
 const query = vi.fn();
 vi.mock("pg", () => ({
   Pool: class {
@@ -11,10 +12,23 @@ vi.mock("pg", () => ({
   },
 }));
 
-const { GET } = await import("@/app/api/livability/route");
+let GET: typeof import("@/app/api/livability/route").GET;
 
-const get = (qs: string) =>
-  GET(new NextRequest(`http://localhost/api/livability${qs}`));
+const get = (qs: string, client = "203.0.113.7") =>
+  GET(
+    new NextRequest(`http://localhost/api/livability${qs}`, {
+      headers: { "x-forwarded-for": client },
+    }),
+  );
+
+// pg returns a bigint column as a string.
+const answer = (node: string | null, analysis: object = ANALYSIS) =>
+  query.mockImplementation(async (sql: string) =>
+    sql.includes("walkreach_start") ? { rows: [{ node }] } : { rows: [{ analysis }] },
+  );
+
+const analysisRuns = () =>
+  query.mock.calls.filter(([sql]) => sql.includes("walkreach_analysis")).length;
 
 const ANALYSIS = {
   total_score: 81.6,
@@ -25,7 +39,9 @@ const ANALYSIS = {
   isochrone: { type: "FeatureCollection", features: [] },
 };
 
-beforeEach(() => {
+beforeEach(async () => {
+  vi.resetModules();
+  ({ GET } = await import("@/app/api/livability/route"));
   query.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -63,8 +79,12 @@ describe("GET /api/livability", () => {
   });
 
   it("passes the coordinates as bind parameters, lng first", async () => {
-    query.mockResolvedValue({ rows: [{ analysis: ANALYSIS }] });
+    answer("48213");
     await get("?lng=175.2793&lat=-37.7871");
+    expect(query).toHaveBeenCalledWith(
+      "SELECT walkreach_start($1, $2) AS node",
+      [175.2793, -37.7871],
+    );
     expect(query).toHaveBeenCalledWith(
       "SELECT walkreach_analysis($1, $2) AS analysis",
       [175.2793, -37.7871],
@@ -79,14 +99,14 @@ describe("GET /api/livability", () => {
     // the network rather than the API refusing it.
     ["a point in Auckland", "?lng=174.7633&lat=-36.8485", [174.7633, -36.8485]],
   ])("accepts %s", async (_, qs, point) => {
-    query.mockResolvedValue({ rows: [{ analysis: ANALYSIS }] });
+    answer("48213");
     const res = await get(qs);
     expect(res.status).toBe(200);
     expect(query).toHaveBeenCalledWith(expect.any(String), point);
   });
 
   it("returns the analysis with the location it was asked about", async () => {
-    query.mockResolvedValue({ rows: [{ analysis: ANALYSIS }] });
+    answer("48213");
     const res = await get("?lng=175.2793&lat=-37.7871");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
@@ -96,7 +116,7 @@ describe("GET /api/livability", () => {
   });
 
   it("does not pass through anything else the function returns", async () => {
-    query.mockResolvedValue({ rows: [{ analysis: { ...ANALYSIS, debug: "x" } }] });
+    answer("48213", { ...ANALYSIS, debug: "x" });
     const body = await (await get("?lng=175.2793&lat=-37.7871")).json();
     expect(Object.keys(body).sort()).toEqual(
       ["amenities", "breakdown", "isochrone", "location", "total_score"],
@@ -108,5 +128,84 @@ describe("GET /api/livability", () => {
     const res = await get("?lng=175.2793&lat=-37.7871");
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Database query failed" });
+  });
+
+  it("lets a browser keep an answer for an hour", async () => {
+    answer("48213");
+    const res = await get("?lng=175.2793&lat=-37.7871");
+    expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");
+  });
+
+  describe("cache", () => {
+    it("runs the analysis once for clicks that start at the same vertex", async () => {
+      answer("48213");
+      await get("?lng=175.2793&lat=-37.7871");
+      const second = await get("?lng=175.2795&lat=-37.7873");
+      expect(analysisRuns()).toBe(1);
+      // The answer is the cached one, about the point asked this time.
+      expect(await second.json()).toEqual({
+        location: { lng: 175.2795, lat: -37.7873 },
+        ...ANALYSIS,
+      });
+    });
+
+    it("runs it again for a different start vertex", async () => {
+      answer("48213");
+      await get("?lng=175.2793&lat=-37.7871");
+      answer("50077");
+      await get("?lng=175.31&lat=-37.79");
+      expect(analysisRuns()).toBe(2);
+    });
+
+    it("keeps one answer for everywhere off the network", async () => {
+      answer(null);
+      await get("?lng=174.7633&lat=-36.8485");
+      await get("?lng=172.6362&lat=-43.5321");
+      expect(analysisRuns()).toBe(1);
+    });
+
+    it("does not keep a failed analysis", async () => {
+      query.mockImplementation(async (sql: string) => {
+        if (sql.includes("walkreach_start")) return { rows: [{ node: "48213" }] };
+        throw new Error("canceling statement due to statement timeout");
+      });
+      expect((await get("?lng=175.2793&lat=-37.7871")).status).toBe(500);
+      answer("48213");
+      expect((await get("?lng=175.2793&lat=-37.7871")).status).toBe(200);
+      expect(analysisRuns()).toBe(2);
+    });
+  });
+
+  describe("rate limit", () => {
+    it("turns a client away after 60 a minute, without querying", async () => {
+      answer("48213");
+      for (let i = 0; i < 60; i++) {
+        expect((await get("?lng=175.2793&lat=-37.7871")).status).toBe(200);
+      }
+      query.mockClear();
+      const res = await get("?lng=175.2793&lat=-37.7871");
+      expect(res.status).toBe(429);
+      expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
+      expect(query).not.toHaveBeenCalled();
+    });
+
+    it("counts each client on its own", async () => {
+      answer("48213");
+      for (let i = 0; i < 61; i++) await get("?lng=175.2793&lat=-37.7871");
+      const other = await get("?lng=175.2793&lat=-37.7871", "198.51.100.4");
+      expect(other.status).toBe(200);
+    });
+
+    it("lets the client back in once the minute is up", async () => {
+      vi.useFakeTimers();
+      try {
+        answer("48213");
+        for (let i = 0; i < 61; i++) await get("?lng=175.2793&lat=-37.7871");
+        vi.advanceTimersByTime(60_000);
+        expect((await get("?lng=175.2793&lat=-37.7871")).status).toBe(200);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

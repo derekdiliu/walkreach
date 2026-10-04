@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Pool } from "pg";
-
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+import { pool } from "@/app/_lib/db";
 
 // Suggestions while typing, from the names in our own database. Nominatim is
 // not asked here: its usage policy rules out a lookup per keystroke, so it is
