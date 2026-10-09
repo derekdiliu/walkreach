@@ -1,11 +1,40 @@
 # Testing and quality assurance
 
-A record of what is tested, how, and the results of a full run. The raw
-output of every run is kept beside it in `docs/qa/<date>/`, so each figure
-here can be checked against the log it came from.
+A record of what is tested, how, and the results of each recorded run,
+newest first. The raw output of every run is kept beside it in
+`docs/qa/<date>/`, so each figure here can be checked against the log it
+came from.
 
 Defects found and fixed, each linked to its regression test, are in
 [`BUGS.md`](BUGS.md).
+
+## Run of 10 October 2026, after upgrading Next.js
+
+Next.js went from 16.3.6 to 16.4.0 (`790c784`), with sharp and
+source-map-js updated by `npm audit fix`, for high-severity advisories
+published after the 25 September run. Every suite the upgrade could affect
+was run again; the image built from that commit is the one deployed.
+
+| Suite | Tests | Result | Output |
+|---|---|---|---|
+| Unit | 96 | 96 passed | [`unit.txt`](qa/2026-10-10/unit.txt) |
+| End-to-end, local | 26 | 26 passed | [`e2e-local.txt`](qa/2026-10-10/e2e-local.txt) |
+| End-to-end, live | 26 | 26 passed | [`e2e-live.txt`](qa/2026-10-10/e2e-live.txt) |
+| Dependency audit | — | 0 vulnerabilities | [`npm-audit.txt`](qa/2026-10-10/npm-audit.txt) |
+
+The counts have grown since 25 September. The unit tests went from 79 to
+96 with the analysis cache and the per-client rate limits (`64ee9dd`, 14
+tests) and the basemap style (`052a8aa`, 3 tests). The end-to-end suite gained "a failed analysis says
+so and can be retried" (`89b0bbd`), run at both screen sizes. As before,
+the local run was against the standalone server laid out as the
+`Dockerfile` does, and the live run against the Azure VM.
+
+The database suite and the timings were not run again. Nothing under
+`sql/` or `tests/db/` has changed since 25 September and the data is the
+same import, so those results below still describe the SQL that is
+deployed.
+
+Environment as on 25 September, except: commit `790c784`, Next.js 16.4.0.
 
 ## Full run, 25 September 2026
 
@@ -91,16 +120,21 @@ server gives away. Each control and the tests that hold it:
 | Leaking internals in errors | A database failure answers `{"error": "Database query failed"}` with status 500; a Nominatim failure answers 502 | unit: "answers 500 without leaking the database error" for all three database routes; 502 for both Nominatim failures |
 | Cross-site scripting | React escapes all text; no `innerHTML` or `dangerouslySetInnerHTML` anywhere; OpenStreetMap names are rendered as text | code check (`grep`), and `<script>` as a coordinate is refused |
 | Overloading Nominatim | Proxied with an identifying User-Agent as its usage policy asks; asked only on submit or on picking a street, never per keystroke; bounded to Hamilton | unit: "asks Nominatim for NZ results bounded to the routable Hamilton box"; e2e: picking a suburb makes no geocode request |
-| Vulnerable dependencies | `npm audit`; Next.js upgraded from 16.3.1 to 16.3.6 for two critical advisories (B16) | `npm audit`: 0 vulnerabilities |
+| Vulnerable dependencies | `npm audit`; Next.js upgraded from 16.3.1 to 16.3.6 for two critical advisories (B16), and to 16.4.0 for the high-severity ones published after that | `npm audit`: 0 vulnerabilities on 10 October 2026 |
 | Exposed database | In production only Caddy publishes ports (80, 443); PostgreSQL is reachable only inside the Docker network, with a generated password; HTTPS throughout | configuration: `deploy/docker-compose.yml` |
 
 ## Known gaps
 
-- **No continuous integration.** The suites are run by hand and recorded
-  here. The database and end-to-end suites need the imported Hamilton data,
-  which is not in the repository.
-- **No rate limiting.** An analysis takes up to about 1.5 s of database time
-  on a 1 GiB server, so a flood of requests could slow the site for others.
+- **Only part of the testing runs in CI.** Every push to `main` type-checks
+  and runs the unit tests before the image is built
+  (`.github/workflows/image.yml`). The database and end-to-end suites need
+  the imported Hamilton data, which is not in the repository, so they are
+  run by hand and recorded here.
+- **Rate limits are per client only.** Each client is limited (60 analyses
+  a minute, 120 routes, 20 address lookups), the database pool is capped at
+  four connections and a query is cancelled after 10 s. Many clients at
+  once could still slow the site on a 1 GiB server; see the load test gap
+  below.
 - **The map drawing itself is not tested automatically.** The end-to-end
   tests check the data sent to the map, not the pixels drawn; B01 and B08
   were checked by eye.

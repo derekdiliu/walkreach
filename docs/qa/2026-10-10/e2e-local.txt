@@ -1,0 +1,35 @@
+
+Running 26 tests using 2 workers
+
+(node:84024) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:84025) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [desktop] › e2e/walkreach.spec.ts:27:5 › the welcome card explains the tool and its example scores the CBD (1.7s)
+  ✓   2 [mobile] › e2e/walkreach.spec.ts:27:5 › the welcome card explains the tool and its example scores the CBD (1.9s)
+  ✓   3 [desktop] › e2e/walkreach.spec.ts:44:5 › the example waits for a slow map rather than failing (4.3s)
+  ✓   4 [mobile] › e2e/walkreach.spec.ts:44:5 › the example waits for a slow map rather than failing (4.2s)
+  ✓   5 [desktop] › e2e/walkreach.spec.ts:68:5 › clicking the map scores the point clicked (1.1s)
+  ✓   6 [mobile] › e2e/walkreach.spec.ts:68:5 › clicking the map scores the point clicked (1.1s)
+  ✓   7 [desktop] › e2e/walkreach.spec.ts:83:5 › a shared link opens straight on its result (324ms)
+  ✓   8 [mobile] › e2e/walkreach.spec.ts:83:5 › a shared link opens straight on its result (520ms)
+  ✓   9 [desktop] › e2e/walkreach.spec.ts:92:5 › counts what is within reach, lists it, and draws the walk to one (2.1s)
+  ✓  10 [mobile] › e2e/walkreach.spec.ts:92:5 › counts what is within reach, lists it, and draws the walk to one (2.7s)
+  ✓  11 [desktop] › e2e/walkreach.spec.ts:133:5 › suggests suburbs as you type and goes straight to one (3.5s)
+  ✓  12 [mobile] › e2e/walkreach.spec.ts:133:5 › suggests suburbs as you type and goes straight to one (3.4s)
+  ✓  13 [desktop] › e2e/walkreach.spec.ts:154:5 › keeps a house number and looks the street up once it is picked (2.0s)
+  ✓  14 [mobile] › e2e/walkreach.spec.ts:154:5 › keeps a house number and looks the street up once it is picked (1.9s)
+  ✓  15 [desktop] › e2e/walkreach.spec.ts:180:5 › start over clears the place and the link, and a refresh stays clear (1.5s)
+  ✓  16 [mobile] › e2e/walkreach.spec.ts:180:5 › start over clears the place and the link, and a refresh stays clear (1.8s)
+  ✓  17 [desktop] › e2e/walkreach.spec.ts:196:5 › start over leaves comparison mode (1.5s)
+  ✓  19 [desktop] › e2e/walkreach.spec.ts:208:5 › a failed analysis says so and can be retried (339ms)
+  ✓  18 [mobile] › e2e/walkreach.spec.ts:196:5 › start over leaves comparison mode (970ms)
+  ✓  20 [desktop] › e2e/walkreach.spec.ts:225:5 › a shared comparison scores both places side by side (511ms)
+  ✓  21 [mobile] › e2e/walkreach.spec.ts:208:5 › a failed analysis says so and can be retried (587ms)
+  ✓  22 [desktop] › e2e/walkreach.spec.ts:237:5 › map and panel both fit the screen (366ms)
+  ✓  24 [desktop] › e2e/walkreach.spec.ts:259:5 › the how it works page is reachable from the top bar (214ms)
+  ✓  23 [mobile] › e2e/walkreach.spec.ts:225:5 › a shared comparison scores both places side by side (877ms)
+  ✓  25 [mobile] › e2e/walkreach.spec.ts:237:5 › map and panel both fit the screen (325ms)
+  ✓  26 [mobile] › e2e/walkreach.spec.ts:259:5 › the how it works page is reachable from the top bar (282ms)
+
+  26 passed (21.2s)
