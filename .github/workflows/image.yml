@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   # The unit tests mock the database, so they need nothing but Node. An image
-  # is only built and published once they pass.
+  # is only built and published once they and the db tests pass.
   test:
     runs-on: ubuntu-latest
     steps:
@@ -28,8 +28,35 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm test
 
+  # The SQL against real Hamilton data, rebuilt from the import's raw tables
+  # by scripts/test-db.sh, on the same Postgres, PostGIS and pgRouting the
+  # server runs.
+  db:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: >
+          docker run -d --name walkreach-db -p 5433:5432
+          -e POSTGRES_USER=walkreach -e POSTGRES_PASSWORD=walkreach -e POSTGRES_DB=walkreach
+          pgrouting/pgrouting:17-3.5-3.7.3
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: gh release download test-data --pattern walkreach-test.dump
+        env:
+          GH_TOKEN: ${{ github.token }}
+      # Over TCP: the server the image starts while it initialises listens on
+      # its socket only, and is restarted once that is done.
+      - run: until docker exec walkreach-db pg_isready -h 127.0.0.1 -U walkreach; do sleep 1; done
+      - run: ./scripts/test-db.sh walkreach-test.dump
+      - run: npm run test:db
+        env:
+          DATABASE_URL: postgresql://walkreach:walkreach@localhost:5433/walkreach_test
+
   build:
-    needs: test
+    needs: [test, db]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
