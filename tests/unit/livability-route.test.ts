@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 // The route's Pool is built at import time, so pg is swapped out before the
-// import. The route asks for the start vertex, then for the analysis when
+// import. The route asks for the start vertex and how far the point is from
+// it, then for the analysis when
 // that vertex is not cached; answer() scripts both. The route is imported
 // afresh for every test so that no cache or rate count carries over.
 const query = vi.fn();
@@ -21,17 +22,20 @@ const get = (qs: string, client = "203.0.113.7") =>
     }),
   );
 
-// pg returns a bigint column as a string.
-const answer = (node: string | null, analysis: object = ANALYSIS) =>
+// pg returns a bigint column as a string. Off the network start_m is null.
+const answer = (node: string | null, analysis: object = ANALYSIS, start_m = 0) =>
   query.mockImplementation(async (sql: string) =>
-    sql.includes("walkreach_start") ? { rows: [{ node }] } : { rows: [{ analysis }] },
+    sql.includes("walkreach_origin")
+      ? { rows: [{ node, start_m: node === null ? null : start_m }] }
+      : { rows: [{ analysis }] },
   );
 
 const analysisRuns = () =>
   query.mock.calls.filter(([sql]) => sql.includes("walkreach_analysis")).length;
 
+// Scored as the SQL scores it, so adding a start_m of 0 changes nothing.
 const ANALYSIS = {
-  total_score: 81.6,
+  total_score: 9.4,
   breakdown: [
     { category: "bus_stop", weighted_score: 9.4, max_score: 10, nearest_m: 78, nearest_name: null },
   ],
@@ -82,7 +86,7 @@ describe("GET /api/livability", () => {
     answer("48213");
     await get("?lng=175.2793&lat=-37.7871");
     expect(query).toHaveBeenCalledWith(
-      "SELECT walkreach_start($1, $2) AS node",
+      "SELECT node, start_m FROM walkreach_origin($1, $2)",
       [175.2793, -37.7871],
     );
     expect(query).toHaveBeenCalledWith(
@@ -136,6 +140,38 @@ describe("GET /api/livability", () => {
     expect(res.headers.get("Cache-Control")).toBe("public, max-age=3600");
   });
 
+  describe("the stretch from the point to the start of the walk", () => {
+    it("is added to every distance and the score follows", async () => {
+      answer("48213", ANALYSIS, 46.6);
+      const body = await (await get("?lng=175.2793&lat=-37.7871")).json();
+      expect(body.amenities).toEqual([{ id: 1041, category: "bus_stop", name: null, walk_m: 125 }]);
+      expect(body.breakdown).toEqual([
+        { category: "bus_stop", weighted_score: 9, max_score: 10, nearest_m: 125, nearest_name: null },
+      ]);
+      expect(body.total_score).toBe(9);
+    });
+
+    it("drops what it takes past 15 minutes, and its points", async () => {
+      answer("48213", ANALYSIS, 1180);
+      const body = await (await get("?lng=175.2793&lat=-37.7871")).json();
+      expect(body.amenities).toEqual([]);
+      expect(body.breakdown).toEqual([
+        { category: "bus_stop", weighted_score: 0, max_score: 10, nearest_m: null, nearest_name: null },
+      ]);
+      expect(body.total_score).toBe(0);
+    });
+
+    it("differs between clicks that share a cached vertex", async () => {
+      answer("48213", ANALYSIS, 10);
+      const near = await (await get("?lng=175.2793&lat=-37.7871")).json();
+      answer("48213", ANALYSIS, 90);
+      const far = await (await get("?lng=175.2799&lat=-37.7877")).json();
+      expect(analysisRuns()).toBe(1);
+      expect(near.amenities[0].walk_m).toBe(88);
+      expect(far.amenities[0].walk_m).toBe(168);
+    });
+  });
+
   describe("cache", () => {
     it("runs the analysis once for clicks that start at the same vertex", async () => {
       answer("48213");
@@ -166,7 +202,7 @@ describe("GET /api/livability", () => {
 
     it("does not keep a failed analysis", async () => {
       query.mockImplementation(async (sql: string) => {
-        if (sql.includes("walkreach_start")) return { rows: [{ node: "48213" }] };
+        if (sql.includes("walkreach_origin")) return { rows: [{ node: "48213", start_m: 0 }] };
         throw new Error("canceling statement due to statement timeout");
       });
       expect((await get("?lng=175.2793&lat=-37.7871")).status).toBe(500);

@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/app/_lib/db";
 import { LruCache, tooMany } from "@/app/_lib/limits";
+import type { Breakdown, Reached } from "@/app/_lib/walkreach";
 import { parsePoint } from "../params";
+import { analysisFromPoint } from "../start";
 
 // The analysis depends on the point only through the network vertex the
 // walk starts at: every click that snaps to the same vertex gets the same
 // answer. So it is cached by that vertex, which is found in a millisecond or
 // two, and the traversal - up to 1.5 s - runs once per vertex. Off the
-// network is one more key. An analysis is 30-50 kB as JSON and two or three
+// network is one more key. The stretch from the point to the vertex differs
+// click by click, so it is added after the cache (see ../start.ts). An analysis is 30-50 kB as JSON and two or three
 // times that in memory, so 200 of them is about 30 MB of a 1 GiB server.
 //
 // The cache lives as long as the process, so restart the app after
@@ -16,8 +19,8 @@ const analyses = new LruCache<Analysis>(200);
 
 type Analysis = {
   total_score: number;
-  breakdown: unknown;
-  amenities: unknown;
+  breakdown: Breakdown[];
+  amenities: Reached[];
   isochrone: unknown;
 };
 
@@ -36,11 +39,12 @@ export async function GET(req: NextRequest) {
   if (limited) return limited;
 
   try {
-    const start = await pool.query(
-      "SELECT walkreach_start($1, $2) AS node",
+    const origin = await pool.query(
+      "SELECT node, start_m FROM walkreach_origin($1, $2)",
       [lng, lat],
     );
-    const key = String(start.rows[0].node ?? "off");
+    const { node, start_m } = origin.rows[0];
+    const key = String(node ?? "off");
 
     let analysis = analyses.get(key);
     if (!analysis) {
@@ -52,7 +56,9 @@ export async function GET(req: NextRequest) {
       analyses.set(key, analysis);
     }
 
-    const { total_score, breakdown, amenities, isochrone } = analysis;
+    // Off the network there is no start_m, and nothing to add it to.
+    const { total_score, breakdown, amenities, isochrone } =
+      start_m === null ? analysis : analysisFromPoint(analysis, start_m);
 
     return NextResponse.json(
       {

@@ -45,13 +45,27 @@ A single call to `walkreach_analysis(lng, lat)` does everything:
 2. Run **one** `pgr_drivingDistance` traversal out to the 1250 m budget.
 3. Score amenities from that traversal — for each category, find the nearest
    reachable one and decay its distance linearly (0 m = full marks,
-   1250 m or unreachable = zero), then weight it. A park or school is matched
-   against its whole footprint, so the distance is to the nearest part of it
-   you could walk up to, not to a centroid sitting somewhere inside it.
-4. List every amenity within the walk, at the distance of whichever of its
-   nodes is reached first. The panel counts these by band and lists them.
+   1250 m or unreachable = zero), then weight it. A walk to an amenity is the
+   network distance to one of its nodes plus the straight last stretch from
+   that node to it, through whichever node makes the sum least. A park or
+   school is matched against its whole footprint, so that stretch ends at the
+   nearest part of it you could walk up to, not at a centroid somewhere
+   inside it.
+4. List every amenity within the walk at that distance. The panel counts
+   these by band and lists them.
 5. Build the bands from the same traversal by taking the reached nodes under
    each distance budget and wrapping them in `ST_ConcaveHull(..., 0.8)`.
+
+The analysis is cached per start node (see [Deploying](#deploying)), so it
+measures from the node. The API then adds the straight stretch from the
+clicked point to that node to every distance, rescores, and drops anything it
+takes past 1250 m — in `app/api/start.ts`, shared by both endpoints so the
+analysis and a route always agree.
+
+Counting both stretches matters more than it sounds. Before they counted, the
+city centre's nearest bus stop read as a 60 m walk although it is 131 m away
+in a straight line; it is now 167 m. The last stretch to a bus stop alone is
+63 m at the median.
 
 Scoring and isochrones share the traversal because they used to be two
 separate endpoints running two separate traversals; merging them cut a click
@@ -86,21 +100,21 @@ GET /api/livability?lng=175.2793&lat=-37.7871
 ```jsonc
 {
   "location": { "lng": 175.2793, "lat": -37.7871 },
-  "total_score": 80.3,
+  "total_score": 76.3,
   "breakdown": [
-    { "category": "supermarket", "weighted_score": 20.3, "max_score": 30.0,
-      "nearest_m": 403, "nearest_name": "NewSave" },
-    { "category": "clinic",      "weighted_score": 19.4, "max_score": 25.0,
-      "nearest_m": 281, "nearest_name": "New Zealand Blood Service Donor Centre" },
-    { "category": "school",      "weighted_score": 18.6, "max_score": 20.0,
-      "nearest_m": 87,  "nearest_name": "Waikato Institue of Education" },
-    { "category": "park",        "weighted_score": 12.5, "max_score": 15.0,
-      "nearest_m": 208, "nearest_name": "Norris Ward Park" },
-    { "category": "bus_stop",    "weighted_score": 9.5,  "max_score": 10.0,
-      "nearest_m": 60,  "nearest_name": "Transport Centre (Bryce St)" }
+    { "category": "supermarket", "weighted_score": 19.2, "max_score": 30.0,
+      "nearest_m": 450, "nearest_name": "NewSave" },
+    { "category": "clinic",      "weighted_score": 18.4, "max_score": 25.0,
+      "nearest_m": 332, "nearest_name": "New Zealand Blood Service Donor Centre" },
+    { "category": "school",      "weighted_score": 17.9, "max_score": 20.0,
+      "nearest_m": 134, "nearest_name": "Waikato Institue of Education" },
+    { "category": "park",        "weighted_score": 12.1, "max_score": 15.0,
+      "nearest_m": 242, "nearest_name": "Norris Ward Park" },
+    { "category": "bus_stop",    "weighted_score": 8.7,  "max_score": 10.0,
+      "nearest_m": 167, "nearest_name": "Transport Centre (Bryce St)" }
   ],
   "amenities": [
-    { "id": 1041, "category": "bus_stop", "name": null, "walk_m": 60 },
+    { "id": 1627, "category": "school", "name": "Waikato Institue of Education", "walk_m": 134 },
     /* every amenity within 1250 m, nearest first */
   ],
   "isochrone": {
@@ -122,19 +136,20 @@ GET /api/route?lng=175.2793&lat=-37.7871&amenity=1452
 
 The walk to one listed amenity, from `walkreach_route(lng, lat, amenity)`:
 a shortest path from the same start vertex to the same node the distance was
-measured to, so the line drawn is exactly `walk_m` long.
+measured to, so the route and its two connectors together are `walk_m` long.
 
 ```jsonc
 {
-  "amenity": { "id": 1452, "category": "supermarket", "name": "NewSave", "walk_m": 403 },
+  "amenity": { "id": 1452, "category": "supermarket", "name": "NewSave", "walk_m": 450 },
   "destination": { "type": "Point", "coordinates": [175.2758777, -37.786535] },
   "route": { "type": "LineString", "coordinates": [/* ... */] },
   "connectors": { "type": "MultiLineString", "coordinates": [/* ... */] }
 }
 ```
 
-`connectors` are the two stretches the distance leaves out, from the point to
-the network and from the network to the amenity; the map draws them dashed.
+`connectors` are the two straight stretches off the network, from the point
+to the network and from the network to the amenity. Both count in `walk_m`;
+the map draws them dashed, since nobody mapped them as paths.
 An amenity that is not within the walk answers 404.
 
 ```
@@ -218,8 +233,8 @@ functions — then prints counts to check against a known-good baseline.
 | `osm2pgrouting` | `ways` — pedestrian edges, `length_m` in metres | ~45,700 |
 | | `ways_vertices_pgr` — nodes, 98.1% in one connected component | ~36,500 |
 | `01-amenities.sql` | `amenities` — five categories, with polygon footprints | ~1,600 |
-| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs | ~37,000 |
-| `03-walkreach-analysis.sql` | `walkreach_analysis(lng, lat)` and `walkreach_route(lng, lat, amenity)` — what the API calls | |
+| `02-amenity-nodes.sql` | `amenity_nodes` — (amenity, node) reachability pairs, with the last stretch between them | ~37,000 |
+| `03-walkreach-analysis.sql` | `walkreach_origin`, `walkreach_analysis(lng, lat)` and `walkreach_route(lng, lat, amenity)` — what the API calls | |
 | `04-livability-score.sql` | `livability_score(lng, lat)` and `get_isochrone(lng, lat)` — superseded, kept as the "before" that `npm run perf` times | |
 | `05-search-names.sql` | `search_names` — suburbs, streets and named amenities for address suggestions | ~2,550 |
 | `06-walkreach-suggest.sql` | `walkreach_suggest(text, n)` — what the suggestions API calls | |
@@ -332,6 +347,7 @@ app/
   api/geocode/route.ts         Nominatim proxy for address search
   api/suggest/route.ts         address suggestions while typing
   api/health/route.ts          uptime check, including the database
+  api/start.ts                 adds the stretch from the point to the network
 sql/
   00-import.sh                 OSM → database, one shot
   01-amenities.sql             categorised amenities table
@@ -367,10 +383,15 @@ These are known, not oversights:
   are small ones set back from any footpath; some were matched before only
   because their centroid happened to fall near a node, which was luck, not
   reach.
-- A walk starts at the nearest network node, not at the point itself, and
-  the stretch between them is not counted. Over 800 points sampled along
-  named streets by length it is 24 m at the median and under 89 m for nine
-  in ten, but a few hundred metres on a long road with few junctions.
+- The stretches from the point to the network and from the network to an
+  amenity are counted as straight lines. The first is 24 m at the median over
+  800 points sampled along named streets, and under 89 m for nine in ten; but
+  on a long road with few junctions the nearest node can be behind the point,
+  and the walk then counts a stretch nobody would walk. Starting on the
+  nearest edge instead (`pgr_withPoints`) would fix that, at the cost of the
+  per-node cache.
+- The bands are drawn from the start node, so they leave out the stretch
+  from the point to it, which the listed distances include.
 - Concave hull bands are one reasonable choice among several; buffer-and-union
   has not been compared yet.
 

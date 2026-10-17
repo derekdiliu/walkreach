@@ -75,14 +75,15 @@ describe("score across the city", () => {
 
   // Pinned from the current data and function. A change here means the
   // score moved: update these deliberately, and say why in the commit, after
-  // reimporting data or changing the scoring.
+  // reimporting data or changing the scoring. All fell when the last stretch
+  // from the network to each amenity started to count.
   it.each([
-    ["cbd", 80.3],
-    ["cbd edge", 65.7],
-    ["north-west", 78.0],
-    ["hamilton east", 31.3],
-    ["south", 41.0],
-    ["outer west", 5.3],
+    ["cbd", 76.8],
+    ["cbd edge", 61.9],
+    ["north-west", 72.9],
+    ["hamilton east", 28.1],
+    ["south", 38.5],
+    ["outer west", 5.2],
     ["far south-west", 0],
   ])("still scores %s at %d", async (name, score) => {
     expect((await analyse(SAMPLES[name])).total_score).toBe(score);

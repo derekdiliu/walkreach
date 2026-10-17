@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { pool } from "@/app/_lib/db";
 import { tooMany } from "@/app/_lib/limits";
 import { parseId, parsePoint } from "../params";
+import { fromPoint } from "../start";
 
 // The walk from a point to one of the amenities its analysis listed. Asked
 // for one at a time, when someone picks an amenity, rather than returned for
@@ -28,8 +29,11 @@ export async function GET(req: NextRequest) {
       [lng, lat, amenity],
     );
 
+    // As in the analysis, the stretch from the point to the start vertex is
+    // added here, and can take the walk past 15 minutes.
     const found = result.rows[0].route;
-    if (!found) {
+    const walk_m = found ? fromPoint(found.amenity.walk_m, found.start_m) : null;
+    if (walk_m === null) {
       return NextResponse.json(
         { error: "Amenity not within a 15 minute walk" },
         { status: 404 },
@@ -38,7 +42,7 @@ export async function GET(req: NextRequest) {
 
     const { amenity: reached, destination, route, connectors } = found;
     return NextResponse.json(
-      { amenity: reached, destination, route, connectors },
+      { amenity: { ...reached, walk_m }, destination, route, connectors },
       { headers: { "Cache-Control": "public, max-age=3600" } },
     );
   } catch (err) {

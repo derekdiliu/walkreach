@@ -56,6 +56,17 @@ RETURNS bigint AS $$
   LIMIT 1
 $$ LANGUAGE sql STABLE;
 
+-- The start vertex and start_m, the straight stretch from the point to it.
+-- The analysis is cached per vertex, so it measures from the vertex and the
+-- API adds start_m to every distance afterwards. Both NULL off the network.
+CREATE OR REPLACE FUNCTION walkreach_origin(input_lng float, input_lat float)
+RETURNS TABLE (node bigint, start_m float) AS $$
+  SELECT v.id, ST_Distance(v.geom::geography,
+    ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)::geography)
+  FROM (SELECT walkreach_start(input_lng, input_lat) AS id) s
+  LEFT JOIN ways_vertices_pgr v ON v.id = s.id
+$$ LANGUAGE sql STABLE;
+
 CREATE OR REPLACE FUNCTION walkreach_analysis(input_lng float, input_lat float)
 RETURNS jsonb AS $$
   WITH start AS (
@@ -77,23 +88,26 @@ RETURNS jsonb AS $$
   nearest AS (
     -- 每类设施取最近的那一个（米），并带出它的名字，好让面板说出是哪一家。
     -- DISTINCT ON 而不是 MIN + GROUP BY：同一个查询里既要距离也要那一行的 name。
+    -- 距离算到设施本身：路网距离加上最后一段 connector_m。
     SELECT DISTINCT ON (an.category)
-      an.category, iso.agg_cost AS nearest_m, a.name
+      an.category, iso.agg_cost + an.connector_m AS nearest_m, a.name
     FROM amenity_nodes an
     JOIN iso ON iso.node = an.node_id
     JOIN amenities a ON a.id = an.amenity_id
-    ORDER BY an.category, iso.agg_cost
+    WHERE iso.agg_cost + an.connector_m <= 1250
+    ORDER BY an.category, iso.agg_cost + an.connector_m
   ),
   reached AS (
-    -- Every amenity within the walk, at the distance of whichever of its
-    -- nodes is reached first: the list behind the counts, and what a route
-    -- can be asked for.
+    -- Every amenity within the walk, through whichever of its nodes makes
+    -- the walk to it shortest, last stretch included: the list behind the
+    -- counts, and what a route can be asked for.
     SELECT DISTINCT ON (an.amenity_id)
-      an.amenity_id, an.category, a.name, iso.agg_cost
+      an.amenity_id, an.category, a.name, iso.agg_cost + an.connector_m AS agg_cost
     FROM amenity_nodes an
     JOIN iso ON iso.node = an.node_id
     JOIN amenities a ON a.id = an.amenity_id
-    ORDER BY an.amenity_id, iso.agg_cost
+    WHERE iso.agg_cost + an.connector_m <= 1250
+    ORDER BY an.amenity_id, iso.agg_cost + an.connector_m
   ),
   scored AS (
     -- 最近设施距离转成 0-1 分：0米=1.0, 1250米=0.0，线性衰减。
@@ -204,9 +218,10 @@ RETURNS jsonb AS $$
 $$ LANGUAGE sql;
 
 -- The walking route from (lng, lat) to one amenity, as walkreach_analysis
--- measured it: from the same start vertex, to whichever of the amenity's
--- nodes is closest along the network. NULL when the amenity is not within
--- the 1250 m walk.
+-- measured it: from the same start vertex, through whichever of the
+-- amenity's nodes makes network distance plus connector_m least. NULL when
+-- the amenity is not within the 1250 m walk. walk_m leaves out start_m, as
+-- the analysis does, for the API to add.
 --
 -- A path of at most 1250 m cannot leave a 1250 m box around its start, so
 -- the edges are cut to a box of 0.015 degrees each way (1,670 m north-south
@@ -220,7 +235,7 @@ RETURNS jsonb AS $$
     WHERE v.id = walkreach_start(input_lng, input_lat)
   ),
   targets AS (
-    SELECT node_id FROM amenity_nodes WHERE amenity_id = target_amenity
+    SELECT node_id, connector_m FROM amenity_nodes WHERE amenity_id = target_amenity
   ),
   paths AS (
     SELECT p.* FROM start, pgr_dijkstra(
@@ -234,10 +249,12 @@ RETURNS jsonb AS $$
     -- The target the walk reaches first. The start being one of the
     -- amenity's own nodes is a walk of 0 m, which Dijkstra returns no path
     -- for, so it is taken separately.
-    SELECT end_vid AS node, agg_cost AS walk_m FROM paths
-    WHERE edge = -1 AND agg_cost <= 1250
+    SELECT end_vid AS node, agg_cost + connector_m AS walk_m
+    FROM paths JOIN targets ON targets.node_id = paths.end_vid
+    WHERE edge = -1 AND agg_cost + connector_m <= 1250
     UNION ALL
-    SELECT start.id, 0 FROM start JOIN targets ON targets.node_id = start.id
+    SELECT start.id, connector_m FROM start JOIN targets ON targets.node_id = start.id
+    WHERE connector_m <= 1250
     ORDER BY walk_m, node
     LIMIT 1
   ),
@@ -261,13 +278,16 @@ RETURNS jsonb AS $$
       'id', arrival.id, 'category', arrival.category, 'name', arrival.name,
       'walk_m', round(arrival.walk_m::numeric)
     ),
+    'start_m', ST_Distance(start.geom::geography,
+      ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326)::geography),
     'destination', ST_AsGeoJSON(arrival.geom, 7)::jsonb,
     'route', COALESCE(ST_AsGeoJSON(line.geom, 7)::jsonb,
       jsonb_build_object('type', 'LineString', 'coordinates', '[]'::jsonb)),
-    -- The two stretches the distance leaves out: from the point to the
-    -- vertex the walk starts at, and from the node it ends at to the
-    -- amenity. Drawn so the route visibly joins the pin to the amenity, and
-    -- drawn apart from it because neither is in walk_m.
+    -- The two straight stretches off the network: from the point to the
+    -- vertex the walk starts at (start_m), and from the node it ends at to
+    -- the amenity (connector_m). Both count in the walk once the API has
+    -- added start_m; they are drawn apart from the route because they are
+    -- straight lines, not paths anyone mapped.
     'connectors', ST_AsGeoJSON(ST_Collect(
       ST_MakeLine(ST_SetSRID(ST_MakePoint(input_lng, input_lat), 4326),
                   start.geom),

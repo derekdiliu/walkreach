@@ -8,7 +8,16 @@ type Route = {
   destination: { type: "Point"; coordinates: [number, number] };
   route: { type: string; coordinates: unknown[] };
   connectors: { type: "MultiLineString"; coordinates: [number, number][][] };
+  start_m: number;
 };
+
+const lengthM = async (geojson: unknown): Promise<number> =>
+  (
+    await pool.query(
+      "SELECT ST_Length(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography) AS m",
+      [JSON.stringify(geojson)],
+    )
+  ).rows[0].m;
 
 async function route(from: Point, amenity: number): Promise<Route | null> {
   const { rows } = await pool.query("SELECT walkreach_route($1, $2, $3) AS r", [
@@ -59,20 +68,52 @@ describe.each(Object.entries(SAMPLES))("what is within reach of %s", (_, point) 
       expect(r, `route to ${id}`).not.toBeNull();
       expect(r!.amenity).toEqual(listed);
 
-      // The line drawn is the walk measured, to the metre, unless the start
-      // is one of the amenity's own nodes and there is no line at all.
-      const { rows } = await pool.query(
-        "SELECT ST_Length(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography) AS m",
-        [JSON.stringify(r!.route)],
-      );
       // The connectors run from the point itself and end on the amenity.
       const [first, last] = r!.connectors.coordinates;
       expect(first[0]).toEqual([point.lng, point.lat]);
       expect(last[1]).toEqual(r!.destination.coordinates);
 
-      if (listed.walk_m === 0) expect(r!.route.coordinates).toEqual([]);
-      else expect(Math.abs(rows[0].m - listed.walk_m)).toBeLessThanOrEqual(1);
+      // The walk measured is the line drawn plus the last stretch to the
+      // amenity, to within rounding. There is no line when the start is one
+      // of the amenity's own nodes. start_m is the first stretch, which the
+      // API adds.
+      const line = r!.route.coordinates.length ? await lengthM(r!.route) : 0;
+      const end = await lengthM({ type: "LineString", coordinates: last });
+      expect(Math.abs(line + end - listed.walk_m)).toBeLessThanOrEqual(1.5);
+      expect(Math.abs((await lengthM({ type: "LineString", coordinates: first })) - r!.start_m))
+        .toBeLessThanOrEqual(0.5);
     }
+  });
+});
+
+describe.each(Object.entries(SAMPLES))("distances from %s", (_, point) => {
+  // The walk from the start vertex to an amenity cannot beat the straight
+  // line between them. Before the last stretch was counted it often did: the
+  // CBD's nearest bus stop read as a 60 m walk, 131 m away as the crow flies.
+  it("never come out shorter than the straight line from the start", async () => {
+    const { amenities } = await analyse(point);
+    const { rows } = await pool.query(
+      `SELECT a.id, ST_Distance(COALESCE(a.area, a.geom)::geography, v.geom::geography) AS m
+       FROM amenities a, ways_vertices_pgr v
+       WHERE a.id = ANY($1) AND v.id = (SELECT node FROM walkreach_origin($2, $3))`,
+      [amenities.map((a) => a.id), point.lng, point.lat],
+    );
+    const straight = new Map(rows.map((r) => [r.id, r.m]));
+    for (const a of amenities) expect(a.walk_m, `amenity ${a.id}`).toBeGreaterThanOrEqual(straight.get(a.id) - 0.5);
+  });
+});
+
+describe("the start of a walk", () => {
+  it("is the nearest vertex, with the straight stretch to it", async () => {
+    const { rows } = await pool.query("SELECT * FROM walkreach_origin(175.2793, -37.7871)");
+    expect(rows[0].node).not.toBeNull();
+    expect(rows[0].start_m).toBeGreaterThan(0);
+    expect(rows[0].start_m).toBeLessThan(200);
+  });
+
+  it("is nowhere off the network", async () => {
+    const { rows } = await pool.query("SELECT * FROM walkreach_origin(175.35, -37.79)");
+    expect(rows).toEqual([{ node: null, start_m: null }]);
   });
 });
 

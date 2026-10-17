@@ -41,7 +41,8 @@ export default function HowItWorks() {
           <dt>Starting junction</dt>
           <dd>
             The junction nearest the spot you pick. Every walk from your spot
-            is measured from there.
+            goes through it, and the straight stretch from your spot to it is
+            counted in the distance.
           </dd>
           <dt>Walking band</dt>
           <dd>
@@ -53,7 +54,9 @@ export default function HowItWorks() {
             An amenity is within reach when a 15 minute walk gets to a junction
             close to it: within 100 m of one mapped as a single point, like a
             bus stop, or within 50 m of the edge of one mapped with an
-            outline, like most parks and schools.
+            outline, like most parks and schools. The last stretch, from that
+            junction to the amenity, is counted in the distance too, so the
+            walk is measured all the way from your spot to the amenity.
           </dd>
         </dl>
 
@@ -232,15 +235,16 @@ export default function HowItWorks() {
             unnamed.
           </li>
           <li>
-            The walk starts at the nearest junction, not at your door, and the
-            stretch between them is not counted. For spots on a street that
-            stretch is usually short, about 25 m, and under 90 m nine times in
-            ten. On a long road with few junctions it can be a few hundred
-            metres.
+            The first and last stretches of a walk, from your spot to the
+            nearest junction and from a junction to the amenity, are counted
+            as straight lines. Each is usually short, under 100 m. But on a
+            long road with few junctions the nearest junction can be behind
+            you, and the walk then counts a stretch you would not walk.
           </li>
           <li>
-            The last stretch to an amenity, from the junction to its door or
-            the edge of its grounds, is not counted either.
+            The bands on the map are drawn from your starting junction, so
+            they leave out the stretch from your spot to it. The distances in
+            the panel include it.
           </li>
           <li>
             Only the nearest of each essential counts towards the score. Having

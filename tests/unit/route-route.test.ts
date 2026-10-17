@@ -27,6 +27,9 @@ const ROUTE = {
   },
 };
 
+// What walkreach_route returns: the route, and start_m for the API to add.
+const ROW = { ...ROUTE, start_m: 0 };
+
 beforeEach(() => {
   query.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
@@ -60,7 +63,7 @@ describe("GET /api/route", () => {
   });
 
   it("passes the point and the amenity as bind parameters", async () => {
-    query.mockResolvedValue({ rows: [{ route: ROUTE }] });
+    query.mockResolvedValue({ rows: [{ route: ROW }] });
     await get("?lng=175.2793&lat=-37.7871&amenity=1452");
     expect(query).toHaveBeenCalledWith(
       "SELECT walkreach_route($1, $2, $3) AS route",
@@ -76,10 +79,23 @@ describe("GET /api/route", () => {
   });
 
   it("returns the route and nothing else the function returns", async () => {
-    query.mockResolvedValue({ rows: [{ route: { ...ROUTE, debug: "x" } }] });
+    query.mockResolvedValue({ rows: [{ route: { ...ROW, debug: "x" } }] });
     const res = await get("?lng=175.2793&lat=-37.7871&amenity=1452");
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual(ROUTE);
+  });
+
+  it("adds the stretch from the point to the start of the walk", async () => {
+    query.mockResolvedValue({ rows: [{ route: { ...ROW, start_m: 24.4 } }] });
+    const body = await (await get("?lng=175.2793&lat=-37.7871&amenity=1452")).json();
+    expect(body.amenity.walk_m).toBe(427);
+  });
+
+  it("answers 404 when that stretch takes the walk past 15 minutes", async () => {
+    const far = { ...ROW, amenity: { ...ROW.amenity, walk_m: 1240 }, start_m: 10.6 };
+    query.mockResolvedValue({ rows: [{ route: far }] });
+    const res = await get("?lng=175.2793&lat=-37.7871&amenity=1452");
+    expect(res.status).toBe(404);
   });
 
   it("answers 404 when the amenity is out of reach", async () => {

@@ -28,6 +28,7 @@ against the real PostGIS database), **e2e** is `e2e/walkreach.spec.ts`.
 | B14 | 2026-09-24 | "Show me an example" did nothing on a slow connection | High | e2e |
 | B15 | 2026-09-25 | Timing script and import failed on a fresh machine | Medium | Manual rebuild |
 | B16 | 2026-09-25 | Next.js with published critical advisories | High | `npm audit` |
+| B17 | 2026-10-18 | Walks shorter than the straight line to the amenity | Medium | db, reach; unit |
 
 Severity: **High** gives a wrong score or answer, or breaks a main task;
 **Medium** is wrong or broken but with a way round it, or only in one
@@ -213,3 +214,20 @@ setting; **Low** is documentation only.
 - **Fix:** upgraded to Next.js 16.3.6, which brings `sharp` 0.35.4.
 - **Regression test:** `npm audit` reports 0 vulnerabilities
   (`docs/qa/2026-09-25/npm-audit.txt`), and every suite passes on 16.3.6.
+
+## B17 Walks shorter than the straight line to the amenity
+
+- **Symptom:** the city centre's nearest bus stop read as a 60 m walk,
+  although it is 131 m away in a straight line.
+- **Cause:** a walk was measured only between network nodes. The stretch
+  from the point to the start node and the stretch from the last node to the
+  amenity, up to 100 m for a bus stop, were drawn on the map but not counted.
+- **Fix:** `amenity_nodes.connector_m` holds the last stretch, and the walk
+  goes through whichever node makes network distance plus it least. The API
+  adds the first stretch after the per-node cache (`app/api/start.ts`). Every
+  pinned score fell: the city centre from 80.3 to 76.8 in SQL, 76.3 from the
+  point itself.
+- **Regression test:** db `reach.test.ts` checks no listed walk is shorter
+  than the straight line from the start, and that a route and its connectors
+  add up to the walk; unit tests check the first stretch is added, rescored
+  and can push an amenity out of reach.

@@ -20,6 +20,12 @@
 -- The polygon radius dropping from 100 m to 50 m does cost coverage: 3 small
 -- parks that used to match a node within 100 m of their centroid have nothing
 -- within 50 m of their footprint, and now score as unreachable.
+--
+-- connector_m is the last stretch, from the node to the amenity: to its
+-- point, or to the nearest edge of its footprint (0 from inside it). The
+-- walk to an amenity is measured to whichever node makes network distance
+-- plus connector_m least, so a node a little farther along the network but
+-- right at the door wins over one closer by network across a car park.
 DROP TABLE IF EXISTS amenity_nodes;
 
 -- osm2pgrouting leaves a GiST index on ways_vertices_pgr.geom, but that indexes
@@ -33,12 +39,14 @@ CREATE INDEX IF NOT EXISTS ways_vertices_pgr_geog_idx
 -- Split rather than COALESCE(area, geom) with a CASE radius: the planner can
 -- only reach an index when each branch names one column and one constant.
 CREATE TABLE amenity_nodes AS
-  SELECT a.id AS amenity_id, a.category, v.id AS node_id
+  SELECT a.id AS amenity_id, a.category, v.id AS node_id,
+    ST_Distance(a.area::geography, v.geom::geography) AS connector_m
   FROM amenities a
   JOIN ways_vertices_pgr v ON ST_DWithin(a.area::geography, v.geom::geography, 50)
   WHERE a.area IS NOT NULL
 UNION ALL
-  SELECT a.id, a.category, v.id
+  SELECT a.id, a.category, v.id,
+    ST_Distance(a.geom::geography, v.geom::geography)
   FROM amenities a
   JOIN ways_vertices_pgr v ON ST_DWithin(a.geom::geography, v.geom::geography, 100)
   WHERE a.area IS NULL;
