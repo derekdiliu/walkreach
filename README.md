@@ -1,11 +1,12 @@
 # WalkReach
 
-> **Work in progress.** This is an active COMPX576 research project, not a
-> finished product. The core — network routing, scoring and isochrones — works
-> end to end and is live, but see [Limitations](#limitations) and
-> [Roadmap](#roadmap) for what is still open.
+[![Image](https://github.com/derekdiliu/walkreach/actions/workflows/image.yml/badge.svg)](https://github.com/derekdiliu/walkreach/actions/workflows/image.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**Live:** https://walkreach.australiaeast.cloudapp.azure.com
+**Live:** https://walkreach.australiaeast.cloudapp.azure.com · **Status:** v1.0,
+stable. Map data from OpenStreetMap as of 25 July 2026.
+
+![WalkReach: the 5, 10 and 15 minute walks from a point in central Hamilton, with its score and nearest amenities](docs/images/walkreach.png)
 
 An interactive walkability tool for Hamilton, New Zealand. Search an address
 or click anywhere on the map, and WalkReach shows you how far you can actually
@@ -30,6 +31,8 @@ the numbers reflect the walk you would actually take.
   scores, and which of the two is closer for each category. The two points are
   kept in the URL (`?a=lng,lat&b=lng,lat`), so a comparison can be shared as a
   link.
+
+![Comparing two places, then drawing the walk to a supermarket](docs/images/demo.gif)
 
 ## How it works
 
@@ -134,6 +137,13 @@ measured to, so the line drawn is exactly `walk_m` long.
 the network and from the network to the amenity; the map draws them dashed.
 An amenity that is not within the walk answers 404.
 
+```
+GET /api/health
+```
+
+`{ "status": "ok" }` once a query has gone through to the database, or 503
+if it cannot be reached — for an uptime monitor.
+
 Addresses are resolved by [Nominatim](https://nominatim.openstreetmap.org),
 proxied through `/api/geocode` so the request carries a User-Agent identifying
 the project, as Nominatim's usage policy asks. Results are restricted to the
@@ -157,9 +167,11 @@ suggested for it.
 
 - **PostgreSQL 17** + **PostGIS 3.5** + **pgRouting 3.7.3** — network storage,
   routing and scoring, all in SQL
-- **Next.js 16** (App Router, TypeScript) with a single route handler and the
-  `pg` driver
-- **MapLibre GL 6** with OpenStreetMap raster tiles — no map API key needed
+- **Next.js 16** (App Router, TypeScript), with route handlers for the API
+  over one shared `pg` pool
+- **MapLibre GL 6** over the [OpenFreeMap](https://openfreemap.org) Positron
+  vector style, falling back to OpenStreetMap raster tiles — no map API key
+  needed
 - **OpenStreetMap** as the data source, imported with `osmium`,
   `osm2pgrouting` and `ogr2ogr`
 
@@ -291,6 +303,10 @@ version after the image workflow finishes:
 docker compose pull app && docker compose up -d app
 ```
 
+The app sends its own security headers (a Content-Security-Policy, HSTS and
+the rest, in `next.config.ts`), so Caddy only terminates TLS and proxies.
+`/api/health` is what an uptime monitor should poll.
+
 The app keeps analyses in memory, keyed by the network vertex a walk starts
 from, so after restoring a new dump into the database run
 `docker compose restart app` as well, or it keeps answering from the old data.
@@ -315,6 +331,7 @@ app/
   api/route/route.ts           the walk to one amenity
   api/geocode/route.ts         Nominatim proxy for address search
   api/suggest/route.ts         address suggestions while typing
+  api/health/route.ts          uptime check, including the database
 sql/
   00-import.sh                 OSM → database, one shot
   01-amenities.sql             categorised amenities table
@@ -341,8 +358,7 @@ deploy/
 
 ## Limitations
 
-Current state as of the mid-trimester break — these are known and being worked
-on, not oversights:
+These are known, not oversights:
 
 - 30 of 1,642 amenities still have no network node in range and are
   invisible to scoring: 24 bus stops, 5 parks and a school. The bus stops are
@@ -366,7 +382,8 @@ on, not oversights:
 
 ## About
 
-WalkReach is a COMPX576 research project for the Master of Information
-Technology at the University of Waikato, and is still under active
-development. Map data is © OpenStreetMap
-contributors, available under the [Open Database License](https://www.openstreetmap.org/copyright).
+WalkReach began as a COMPX576 research project for the Master of Information
+Technology at the University of Waikato, and is now kept up as a personal
+project. The code is under the [MIT License](LICENSE). Map data is ©
+OpenStreetMap contributors, available under the
+[Open Database License](https://www.openstreetmap.org/copyright).

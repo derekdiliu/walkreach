@@ -9,3 +9,4 @@ sql
 initdb
 docker-compose.yml
 *.md
+docs

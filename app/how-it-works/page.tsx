@@ -203,7 +203,8 @@ export default function HowItWorks() {
         <ul>
           <li>
             Streets, footpaths and amenities come from{" "}
-            <a href="https://www.openstreetmap.org">OpenStreetMap</a>.
+            <a href="https://www.openstreetmap.org">OpenStreetMap</a>, as it
+            stood on 25 July 2026.
           </li>
           <li>
             Routing runs in PostgreSQL with PostGIS and pgRouting.
@@ -263,8 +264,8 @@ export default function HowItWorks() {
         <h2>About</h2>
         <p>
           WalkReach is a COMPX576 research project for the Master of
-          Information Technology at the University of Waikato, and is still
-          under active development. Map data © OpenStreetMap contributors,
+          Information Technology at the University of Waikato, now kept up as
+          a personal project. Map data © OpenStreetMap contributors,
           available under the{" "}
           <a href="https://www.openstreetmap.org/copyright">
             Open Database License
