@@ -287,6 +287,9 @@ gh release download test-data --pattern walkreach-test.dump
 DATABASE_URL=postgresql://walkreach:walkreach@localhost:5433/walkreach_test npm run test:db
 ```
 
+CI then runs the end-to-end suite over the same database, against the
+production build laid out as the `Dockerfile` does.
+
 [`docs/QA.md`](docs/QA.md) records a full run with its output, the
 security testing and the known gaps; [`docs/BUGS.md`](docs/BUGS.md) logs
 every defect fixed and the test that guards it.
@@ -296,8 +299,8 @@ every defect fixed and the test that guards it.
 `deploy/` runs the whole thing on one small Linux VM: Postgres with pgRouting,
 the app, and Caddy in front for HTTPS. Only Caddy publishes ports (80 and 443).
 It is sized for 1 GiB of RAM, which is too little to run `next build`, so
-`.github/workflows/image.yml` type-checks and runs the unit and database
-tests on every push to `main`, and only if they pass builds the app image and publishes it
+`.github/workflows/image.yml` type-checks and runs the unit, database and
+end-to-end tests on every push to `main`, and only if they pass builds the app image and publishes it
 to `ghcr.io/derekdiliu/walkreach`; the server only pulls it. Make that
 package public once, under the repository's Packages settings, or the
 server needs a `docker login ghcr.io` first.
