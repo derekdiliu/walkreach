@@ -125,11 +125,12 @@ server gives away. Each control and the tests that hold it:
 
 ## Known gaps
 
-- **Only part of the testing runs in CI.** Every push to `main` type-checks
-  and runs the unit tests before the image is built
-  (`.github/workflows/image.yml`). The database and end-to-end suites need
-  the imported Hamilton data, which is not in the repository, so they are
-  run by hand and recorded here.
+- **The end-to-end suite does not run in CI.** Every push to `main`
+  type-checks and runs the unit and database tests before the image is
+  built (`.github/workflows/image.yml`); the database tests run against all
+  of Hamilton, rebuilt by `scripts/test-db.sh` from a dump of the import's
+  raw tables (`a2b3b0e`). The end-to-end suite is still run by hand and
+  recorded here.
 - **Rate limits are per client only.** Each client is limited (60 analyses
   a minute, 120 routes, 20 address lookups), the database pool is capped at
   four connections and a query is cancelled after 10 s. Many clients at
