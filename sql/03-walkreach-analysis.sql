@@ -86,9 +86,10 @@ RETURNS jsonb AS $$
            ('park', 0.15), ('bus_stop', 0.10)
   ),
   nearest AS (
-    -- 每类设施取最近的那一个（米），并带出它的名字，好让面板说出是哪一家。
-    -- DISTINCT ON 而不是 MIN + GROUP BY：同一个查询里既要距离也要那一行的 name。
-    -- 距离算到设施本身：路网距离加上最后一段 connector_m。
+    -- The nearest amenity of each kind (metres), with its name so the panel
+    -- can say which one. DISTINCT ON rather than MIN + GROUP BY, because the
+    -- query needs both the distance and that row's name. The distance runs to
+    -- the amenity itself: network distance plus the last stretch, connector_m.
     SELECT DISTINCT ON (an.category)
       an.category, iso.agg_cost + an.connector_m AS nearest_m, a.name
     FROM amenity_nodes an
@@ -110,8 +111,9 @@ RETURNS jsonb AS $$
     ORDER BY an.amenity_id, iso.agg_cost + an.connector_m
   ),
   scored AS (
-    -- 最近设施距离转成 0-1 分：0米=1.0, 1250米=0.0，线性衰减。
-    -- 每类都输出一行，走不到的那类是 0 分（而不是从结果里消失）。
+    -- The nearest distance becomes a 0-1 score, decaying linearly from 1.0 at
+    -- 0 m to 0.0 at 1250 m. Every category gets a row: one with nothing in
+    -- reach scores 0 rather than dropping out of the result.
     SELECT w.category,
       round((
         GREATEST(0, 1 - COALESCE(n.nearest_m, 1250) / 1250.0) * w.weight * 100

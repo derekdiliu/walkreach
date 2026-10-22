@@ -30,7 +30,7 @@ RETURNS TABLE(category text, weighted_score numeric) AS $$
     JOIN ways_vertices_pgr v ON dd.node = v.id
   ),
   reached AS (
-    -- 每个设施找到它最快的可达距离（米）
+    -- The shortest walk to each amenity (metres)
     SELECT a.category, a.id,
       MIN(iso.agg_cost) AS dist_m
     FROM amenities a
@@ -38,13 +38,13 @@ RETURNS TABLE(category text, weighted_score numeric) AS $$
     GROUP BY a.category, a.id
   ),
   nearest AS (
-    -- 每类只取最近的那个设施
+    -- Only the nearest amenity of each kind
     SELECT category, MIN(dist_m) AS nearest_m
     FROM reached GROUP BY category
   )
   SELECT category,
     round((
-      -- 最近设施距离转成 0-1 分：0米=1.0, 1250米=0.0，线性衰减
+      -- The nearest distance becomes a 0-1 score: 1.0 at 0 m, 0.0 at 1250 m, linear
       GREATEST(0, 1 - nearest_m / 1250.0) *
       CASE category
         WHEN 'supermarket' THEN 0.30 WHEN 'clinic' THEN 0.25
