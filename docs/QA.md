@@ -8,6 +8,39 @@ came from.
 Defects found and fixed, each linked to its regression test, are in
 [`BUGS.md`](BUGS.md).
 
+## Run of 23 October 2026, all three suites
+
+Every suite was run again after B17 (`2208da4`), which changed the SQL and
+the walk distances, the move of the database and end-to-end suites into CI
+(`a2b3b0e`, `878a746`), the upgrade to Next.js 16.4.2 (`63c2654`), and
+`npm audit fix` taking Vitest from 5.0.1 to 5.0.5 for two moderate
+advisories in `@vitest/mocker`, a development dependency only.
+
+| Suite | Tests | Result | Output |
+|---|---|---|---|
+| Unit | 103 | 103 passed | [`unit.txt`](qa/2026-10-23/unit.txt) |
+| Database | 101 | 101 passed | [`db.txt`](qa/2026-10-23/db.txt) |
+| End-to-end, local | 26 | 26 passed | [`e2e-local.txt`](qa/2026-10-23/e2e-local.txt) |
+| Dependency audit | — | 0 vulnerabilities | [`npm-audit.txt`](qa/2026-10-23/npm-audit.txt) |
+| Security headers, live | — | all five sent | [`headers-live.txt`](qa/2026-10-23/headers-live.txt) |
+
+The unit tests went from 96 to 103 with the health check (`24646d1`) and the
+first stretch of a walk (`2208da4`); the database tests from 96 to 101 with
+B17's checks that no walk is shorter than the straight line from its start
+(at three points) and that a walk starts at the nearest vertex, with the
+straight stretch to it. The seven pinned scores all fell with B17, the city
+centre from 80.3 to 76.8. The database suite ran over
+`walkreach_test`, built by `scripts/test-db.sh` from the `test-data` dump as
+CI builds it, and the end-to-end suite against the standalone server over
+that database, as CI runs it.
+
+The end-to-end suite was not run against the live site this time, and the
+timings were not taken again; the live site's city centre score was checked
+by hand and is the 76.3 B17 gives.
+
+Environment as on 25 September, except: Next.js 16.4.2, Vitest 5.0.5,
+Chromium of Playwright 1.63.0 (build 1243).
+
 ## Run of 10 October 2026, after upgrading Next.js
 
 Next.js went from 16.3.6 to 16.4.0 (`790c784`), with sharp and
@@ -120,7 +153,8 @@ server gives away. Each control and the tests that hold it:
 | Leaking internals in errors | A database failure answers `{"error": "Database query failed"}` with status 500; a Nominatim failure answers 502 | unit: "answers 500 without leaking the database error" for all three database routes; 502 for both Nominatim failures |
 | Cross-site scripting | React escapes all text; no `innerHTML` or `dangerouslySetInnerHTML` anywhere; OpenStreetMap names are rendered as text | code check (`grep`), and `<script>` as a coordinate is refused |
 | Overloading Nominatim | Proxied with an identifying User-Agent as its usage policy asks; asked only on submit or on picking a street, never per keystroke; bounded to Hamilton | unit: "asks Nominatim for NZ results bounded to the routable Hamilton box"; e2e: picking a suburb makes no geocode request |
-| Vulnerable dependencies | `npm audit`; Next.js upgraded from 16.3.1 to 16.3.6 for two critical advisories (B16), and to 16.4.0 for the high-severity ones published after that | `npm audit`: 0 vulnerabilities on 10 October 2026 |
+| Vulnerable dependencies | `npm audit`; Next.js upgraded from 16.3.1 to 16.3.6 for two critical advisories (B16), to 16.4.0 for the high-severity ones published after that, and to 16.4.2; Vitest to 5.0.5 for two moderate advisories | `npm audit`: 0 vulnerabilities on 23 October 2026 |
+| Clickjacking, injected content, downgrade to HTTP | Every response sends a Content-Security-Policy (own scripts only, no framing), Strict-Transport-Security, `nosniff`, a Referrer-Policy and a Permissions-Policy (`next.config.ts`) | the live site's headers, recorded on 23 October 2026 |
 | Exposed database | In production only Caddy publishes ports (80, 443); PostgreSQL is reachable only inside the Docker network, with a generated password; HTTPS throughout | configuration: `deploy/docker-compose.yml` |
 
 ## Known gaps

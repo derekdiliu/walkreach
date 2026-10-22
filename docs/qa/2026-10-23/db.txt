@@ -1,0 +1,114 @@
+
+> walkreach@1.0.0 test:db
+> vitest run tests/db --reporter=verbose
+
+
+ RUN  v5.0.5 /Users/derek/Documents/dev/walkreach/app
+
+ ✓ tests/db/suggest.test.ts > address suggestions > completes the start of a name 113ms
+ ✓ tests/db/suggest.test.ts > address suggestions > completes the start of a later word 10ms
+ ✓ tests/db/suggest.test.ts > address suggestions > puts a suburb ahead of the streets named after it 9ms
+ ✓ tests/db/suggest.test.ts > address suggestions > forgives a typo from five characters on 9ms
+ ✓ tests/db/suggest.test.ts > address suggestions > does not guess from a few letters 4ms
+ ✓ tests/db/suggest.test.ts > address suggestions > ignores case 11ms
+ ✓ tests/db/suggest.test.ts > address suggestions > treats % as text, not a pattern 6ms
+ ✓ tests/db/suggest.test.ts > address suggestions > treats _ as text, not a pattern 4ms
+ ✓ tests/db/suggest.test.ts > address suggestions > treats %%% as text, not a pattern 6ms
+ ✓ tests/db/suggest.test.ts > address suggestions > treats \ as text, not a pattern 6ms
+ ✓ tests/db/suggest.test.ts > address suggestions > tells the Woolworths apart by suburb 12ms
+ ✓ tests/db/suggest.test.ts > address suggestions > gives places and amenities a point inside Hamilton, and streets none 10ms
+ ✓ tests/db/suggest.test.ts > address suggestions > returns at most as many as asked for 5ms
+ ✓ tests/db/suggest.test.ts > address suggestions > leaves bus stops out 2ms
+ ✓ tests/db/spatial.test.ts > the river as a barrier > leaves the opposite bank out of the catchment when no crossing is in reach 820ms
+ ✓ tests/db/spatial.test.ts > the river as a barrier > measures the walk to the opposite bank round the nearest bridge 40ms
+ ✓ tests/db/spatial.test.ts > the river as a barrier > includes a point as far away on the same bank 268ms
+ ✓ tests/db/scoring.test.ts > score at cbd > reports every category, even one out of reach, with its weight as max 1714ms
+ ✓ tests/db/reach.test.ts > what is within reach of cbd > lists each amenity once, nearest first, all inside the walk 1721ms
+ ✓ tests/db/scoring.test.ts > score at cbd > keeps each category between 0 and its max 697ms
+ ✓ tests/db/reach.test.ts > what is within reach of cbd > agrees with the breakdown on the nearest of each kind 706ms
+ ✓ tests/db/scoring.test.ts > score at cbd > totals the categories 692ms
+ ✓ tests/db/spatial.test.ts > the river as a barrier > includes the opposite bank where a bridge is in reach 2100ms
+ ✓ tests/db/reach.test.ts > what is within reach of cbd > routes to the nearest and the farthest of each kind at the listed distance 830ms
+ ✓ tests/db/reach.test.ts > what is within reach of hamilton east > lists each amenity once, nearest first, all inside the walk 506ms
+ ✓ tests/db/scoring.test.ts > score at cbd > decays linearly with walking distance to the nearest, to 0 at 1250 m 726ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from cbd > returns the 5, 10 and 15 minute bands, longest first 730ms
+ ✓ tests/db/reach.test.ts > what is within reach of hamilton east > agrees with the breakdown on the nearest of each kind 479ms
+ ✓ tests/db/scoring.test.ts > score at cbd edge > reports every category, even one out of reach, with its weight as max 536ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from cbd > draws valid polygons that do not overlap each other 744ms
+ ✓ tests/db/reach.test.ts > what is within reach of hamilton east > routes to the nearest and the farthest of each kind at the listed distance 547ms
+ ✓ tests/db/scoring.test.ts > score at cbd edge > keeps each category between 0 and its max 525ms
+ ✓ tests/db/scoring.test.ts > score at cbd edge > totals the categories 538ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from cbd > covers nearly every node reachable in 15 minutes 931ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from river road > returns the 5, 10 and 15 minute bands, longest first 258ms
+ ✓ tests/db/scoring.test.ts > score at cbd edge > decays linearly with walking distance to the nearest, to 0 at 1250 m 525ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from river road > draws valid polygons that do not overlap each other 266ms
+ ✓ tests/db/reach.test.ts > what is within reach of north-west > lists each amenity once, nearest first, all inside the walk 1540ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from river road > covers nearly every node reachable in 15 minutes 328ms
+ ✓ tests/db/scoring.test.ts > score at north-west > reports every category, even one out of reach, with its weight as max 1516ms
+ ✓ tests/db/reach.test.ts > what is within reach of north-west > agrees with the breakdown on the nearest of each kind 1543ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from north-west > returns the 5, 10 and 15 minute bands, longest first 1547ms
+ ✓ tests/db/scoring.test.ts > score at north-west > keeps each category between 0 and its max 1549ms
+ ✓ tests/db/reach.test.ts > what is within reach of north-west > routes to the nearest and the farthest of each kind at the listed distance 1575ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from north-west > draws valid polygons that do not overlap each other 1525ms
+ ✓ tests/db/reach.test.ts > distances from cbd > never come out shorter than the straight line from the start 756ms
+ ✓ tests/db/scoring.test.ts > score at north-west > totals the categories 1570ms
+ ✓ tests/db/reach.test.ts > distances from hamilton east > never come out shorter than the straight line from the start 493ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from north-west > covers nearly every node reachable in 15 minutes 1625ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from hamilton east > returns the 5, 10 and 15 minute bands, longest first 492ms
+ ✓ tests/db/scoring.test.ts > score at north-west > decays linearly with walking distance to the nearest, to 0 at 1250 m 1530ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from hamilton east > draws valid polygons that do not overlap each other 489ms
+ ✓ tests/db/reach.test.ts > distances from north-west > never come out shorter than the straight line from the start 1548ms
+ ✓ tests/db/reach.test.ts > the start of a walk > is the nearest vertex, with the straight stretch to it 2ms
+ ✓ tests/db/reach.test.ts > the start of a walk > is nowhere off the network 1ms
+ ✓ tests/db/scoring.test.ts > score at hamilton east > reports every category, even one out of reach, with its weight as max 500ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from hamilton east > covers nearly every node reachable in 15 minutes 627ms
+ ✓ tests/db/reach.test.ts > routes that cannot be walked > returns nothing for an amenity beyond 15 minutes 738ms
+ ✓ tests/db/reach.test.ts > routes that cannot be walked > returns nothing from off the network, where nothing is listed 5ms
+ ✓ tests/db/reach.test.ts > routes that cannot be walked > returns nothing for an amenity that does not exist 10ms
+ ✓ tests/db/reach.test.ts > amenity names > keeps the name OSM gives every point amenity 4ms
+ ✓ tests/db/scoring.test.ts > score at hamilton east > keeps each category between 0 and its max 489ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from south > returns the 5, 10 and 15 minute bands, longest first 359ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from south > draws valid polygons that do not overlap each other 362ms
+ ✓ tests/db/scoring.test.ts > score at hamilton east > totals the categories 498ms
+ ✓ tests/db/reach.test.ts > amenity names > names the Woolworths at Chartwell, a point tagged with a brand 817ms
+ ✓ tests/db/spatial.test.ts > isochrone bands from south > covers nearly every node reachable in 15 minutes 429ms
+ ✓ tests/db/spatial.test.ts > points off the walking network > scores farmland 2.3 km east of the network as outside it 5ms
+ ✓ tests/db/spatial.test.ts > points off the walking network > scores the Tasman Sea as outside it 2ms
+ ✓ tests/db/scoring.test.ts > score at hamilton east > decays linearly with walking distance to the nearest, to 0 at 1250 m 538ms
+ ✓ tests/db/scoring.test.ts > score at south > reports every category, even one out of reach, with its weight as max 332ms
+ ✓ tests/db/spatial.test.ts > points off the walking network > still scores a point well back from the nearest path 646ms
+ ✓ tests/db/scoring.test.ts > score at south > keeps each category between 0 and its max 357ms
+ ✓ tests/db/scoring.test.ts > score at south > totals the categories 351ms
+ ✓ tests/db/spatial.test.ts > coverage of the whole city > reaches Huntington 610ms
+ ✓ tests/db/spatial.test.ts > coverage of the whole city > reaches Flagstaff north 202ms
+ ✓ tests/db/scoring.test.ts > score at south > decays linearly with walking distance to the nearest, to 0 at 1250 m 345ms
+ ✓ tests/db/scoring.test.ts > score at outer west > reports every category, even one out of reach, with its weight as max 52ms
+ ✓ tests/db/scoring.test.ts > score at outer west > keeps each category between 0 and its max 51ms
+ ✓ tests/db/scoring.test.ts > score at outer west > totals the categories 51ms
+ ✓ tests/db/scoring.test.ts > score at outer west > decays linearly with walking distance to the nearest, to 0 at 1250 m 51ms
+ ✓ tests/db/scoring.test.ts > score at far south-west > reports every category, even one out of reach, with its weight as max 47ms
+ ✓ tests/db/scoring.test.ts > score at far south-west > keeps each category between 0 and its max 47ms
+ ✓ tests/db/scoring.test.ts > score at far south-west > totals the categories 46ms
+ ✓ tests/db/scoring.test.ts > score at far south-west > decays linearly with walking distance to the nearest, to 0 at 1250 m 46ms
+ ✓ tests/db/spatial.test.ts > coverage of the whole city > reaches Silverdale 583ms
+ ✓ tests/db/spatial.test.ts > coverage of the whole city > reaches Riverlea 662ms
+ ✓ tests/db/spatial.test.ts > coverage of the whole city > reaches Ruakura 556ms
+ ✓ tests/db/scoring.test.ts > score across the city > ranks the CBD above its edge 1431ms
+ ✓ tests/db/spatial.test.ts > fragments cut off from the network > starts from the main network at the CBD, beside Victoria Street 586ms
+ ✓ tests/db/scoring.test.ts > score across the city > scores the city centre as walkable and the rural fringe as car-dependent 732ms
+ ✓ tests/db/spatial.test.ts > fragments cut off from the network > starts from the main network at Rototuna North 312ms
+ ✓ tests/db/scoring.test.ts > score across the city > still scores cbd at 76.8 682ms
+ ✓ tests/db/spatial.test.ts > fragments cut off from the network > starts from the main network at Hamilton Lake south 902ms
+ ✓ tests/db/spatial.test.ts > fragments cut off from the network > starts from the main network at Hillcrest south 236ms
+ ✓ tests/db/scoring.test.ts > score across the city > still scores cbd edge at 61.9 521ms
+ ✓ tests/db/scoring.test.ts > score across the city > still scores north-west at 72.9 1463ms
+ ✓ tests/db/scoring.test.ts > score across the city > still scores hamilton east at 28.1 461ms
+ ✓ tests/db/scoring.test.ts > score across the city > still scores south at 38.5 329ms
+ ✓ tests/db/scoring.test.ts > score across the city > still scores outer west at 5.2 50ms
+ ✓ tests/db/scoring.test.ts > score across the city > still scores far south-west at 0 43ms
+
+ Test Files  4 passed (4)
+      Tests  101 passed (101)
+   Start at  00:09:38
+   Duration  21.74s (tests 100%)
+
